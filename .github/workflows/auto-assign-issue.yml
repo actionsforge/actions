@@ -1,0 +1,50 @@
+name: auto-assign-issue
+on:
+  workflow_call:
+    inputs:
+      assignees:
+        type: string
+        required: false
+        default: jajera
+        description: Comma separated list of user names. Issue will be assigned to those users.
+      numOfAssignee:
+        type: number
+        required: false
+        default: 5
+        description: Number of assignees that will be randomly picked from the teams or assignees.
+      abortIfPreviousAssignees:
+        type: boolean
+        required: false
+        default: false
+        description: Flag that aborts the action if there were assignees previously.
+      removePreviousAssignees:
+        type: boolean
+        required: false
+        default: false
+        description: Flag that removes assignees before assigning them (useful the issue is reasigned).
+      allowNoAssignees:
+        type: boolean
+        required: false
+        default: false
+        description: Flag that prevents the action from failing when there are no assignees.
+      allowSelfAssign:
+        type: boolean
+        required: false
+        default: true
+        description: Flag that allows self-assignment to the issue author.
+
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: 'Auto-assign issue'
+        uses: pozil/auto-assign-issue@v2
+        with:
+          assignees: ${{ inputs.assignees }}
+          numOfAssignee: ${{ inputs.numOfAssignee }}
+          abortIfPreviousAssignees: ${{ inputs.abortIfPreviousAssignees }}
+          removePreviousAssignees: ${{ inputs.removePreviousAssignees }}
+          allowNoAssignees: ${{ inputs.allowNoAssignees }}
+          allowSelfAssign: ${{ inputs.allowSelfAssign }}

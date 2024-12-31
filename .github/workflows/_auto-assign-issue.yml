@@ -1,0 +1,10 @@
+name: auto-assign-issue
+on:
+  issues:
+    types: 
+      - opened
+permissions:
+  issues: write
+jobs:
+  auto-assign:
+    uses: ./.github/workflows/auto-assign-issue.yml
