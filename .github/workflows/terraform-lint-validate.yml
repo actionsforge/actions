@@ -1,0 +1,30 @@
+name: terraform-lint-validate
+
+on:
+  workflow_call:
+
+jobs:
+  fmt-check:
+    runs-on: ubuntu-latest
+    name: Check Terraform Formatting
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Check Terraform Formatting
+        uses: dflook/terraform-fmt-check@v1
+        with:
+          path: .
+
+  validate:
+    runs-on: ubuntu-latest
+    name: Validate Terraform Configuration
+    needs: fmt-check
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Terraform Configuration
+        uses: dflook/terraform-validate@v1
+        with:
+          path: .
