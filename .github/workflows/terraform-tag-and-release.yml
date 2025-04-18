@@ -1,4 +1,4 @@
-name: terraform-build-and-tag
+name: terraform-tag-and-release
 
 on:
   workflow_call:
@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   release:
-    name: Release and Tag
+    name: Terraform Tag and Release
     runs-on: ubuntu-latest
 
     steps:
