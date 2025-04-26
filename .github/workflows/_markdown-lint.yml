@@ -8,4 +8,4 @@ permissions:
   pull-requests: read
 jobs:
   markdown-lint:
-    uses: ./.github/workflows/commitmsg-conform.yml
+    uses: ./.github/workflows/markdown-lint.yml
