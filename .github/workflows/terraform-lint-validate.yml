@@ -9,7 +9,7 @@ jobs:
     name: Check Terraform Formatting
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check Terraform Formatting
         uses: dflook/terraform-fmt-check@v1
@@ -22,7 +22,7 @@ jobs:
     needs: fmt-check
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Validate Terraform Configuration
         uses: dflook/terraform-validate@v1
