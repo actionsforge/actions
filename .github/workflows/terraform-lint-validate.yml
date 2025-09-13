@@ -2,6 +2,12 @@ name: terraform-lint-validate
 
 on:
   workflow_call:
+    inputs:
+      path:
+        description: 'Path to the Terraform configuration directory'
+        required: false
+        type: string
+        default: '.'
 
 jobs:
   fmt-check:
@@ -14,7 +20,7 @@ jobs:
       - name: Check Terraform Formatting
         uses: dflook/terraform-fmt-check@v1
         with:
-          path: .
+          path: ${{ inputs.path }}
 
   validate:
     runs-on: ubuntu-latest
@@ -27,4 +33,4 @@ jobs:
       - name: Validate Terraform Configuration
         uses: dflook/terraform-validate@v1
         with:
-          path: .
+          path: ${{ inputs.path }}
