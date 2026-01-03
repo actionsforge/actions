@@ -84,17 +84,21 @@ jobs:
           VALUES_FILE="${{ inputs.values_file || '' }}"
           KUBE_VERSION="${{ inputs.kube_version || '' }}"
 
+          # Args for lint and install (no --kube-version)
           ARGS=()
           if [ -n "${VALUES_FILE}" ]; then
             ARGS+=("-f" "${VALUES_FILE}")
           fi
 
+          # Args for template (includes --kube-version if provided)
+          TEMPLATE_ARGS=("${ARGS[@]}")
           if [ -n "${KUBE_VERSION}" ]; then
-            ARGS+=("--kube-version" "${KUBE_VERSION}")
+            TEMPLATE_ARGS+=("--kube-version" "${KUBE_VERSION}")
           fi
 
           echo "chart_dir=${CHART_DIR}" >> "$GITHUB_OUTPUT"
           echo "args=${ARGS[*]}" >> "$GITHUB_OUTPUT"
+          echo "template_args=${TEMPLATE_ARGS[*]}" >> "$GITHUB_OUTPUT"
 
       - name: Helm lint
         if: ${{ inputs.run_lint != false }}
@@ -110,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "${{ steps.args.outputs.chart_dir }}"
-          helm template "${{ inputs.release_name || 'test-release' }}" . ${{ steps.args.outputs.args }} > /dev/null
+          helm template "${{ inputs.release_name || 'test-release' }}" . ${{ steps.args.outputs.template_args }} > /dev/null
 
       - name: Validate install dry-run
         if: ${{ inputs.run_install_dry_run != false }}
