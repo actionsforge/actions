@@ -90,11 +90,13 @@ jobs:
             exit 0
           fi
 
-          echo "Building chart dependencies from Chart.lock..."
+          echo "Building chart dependencies..."
 
           output="$(helm dependency build 2>&1)" || {
-            if echo "$output" | grep -qi "exceeds the maximum allowed size"; then
-              echo "⚠️  Dependency build failed due to size limit, continuing"
+            # Allow only the known "file too large" / "size limit" failure modes
+            if echo "$output" | grep -Eqi \
+              'larger than the maximum file size|exceeds the maximum allowed size|too large|max(imum)? (allowed )?size'; then
+              echo "⚠️  Dependency build hit Helm size limit, continuing"
             else
               echo "❌ Dependency build failed with unexpected error"
               echo "$output"
