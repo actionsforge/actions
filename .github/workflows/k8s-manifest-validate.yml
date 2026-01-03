@@ -79,19 +79,28 @@ jobs:
         with:
           version: ${{ inputs.helm_version || 'latest' }}
 
-      - name: Update chart dependencies
+      - name: Build chart dependencies
         shell: bash
         run: |
           set -euo pipefail
           cd "${{ inputs.chart_dir || '.' }}"
-          
+
           if [ ! -f "Chart.yaml" ]; then
-            echo "⚠️  Chart.yaml not found, skipping dependency update"
+            echo "⚠️  Chart.yaml not found, skipping dependency build"
             exit 0
           fi
-          
-          echo "Building chart dependencies..."
-          helm dependency update || echo "⚠️  Dependency update failed, continuing"
+
+          echo "Building chart dependencies from Chart.lock..."
+
+          output="$(helm dependency build 2>&1)" || {
+            if echo "$output" | grep -qi "exceeds the maximum allowed size"; then
+              echo "⚠️  Dependency build failed due to size limit, continuing"
+            else
+              echo "❌ Dependency build failed with unexpected error"
+              echo "$output"
+              exit 1
+            fi
+          }
 
       - name: Build render args
         id: args
