@@ -74,6 +74,19 @@ jobs:
         with:
           version: ${{ inputs.helm_version || 'latest' }}
 
+      - name: Build chart dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${{ inputs.chart_dir || '.' }}"
+          
+          if [ ! -f "Chart.yaml" ]; then
+            echo "⚠️  Chart.yaml not found, skipping dependency build"
+            exit 0
+          fi
+          
+          helm dependency build
+  
       - name: Build Helm args
         id: args
         shell: bash
