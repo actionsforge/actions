@@ -85,7 +85,7 @@ jobs:
             exit 0
           fi
           
-          helm dependency build
+          helm dependency update
   
       - name: Build Helm args
         id: args
