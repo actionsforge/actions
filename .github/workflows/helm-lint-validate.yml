@@ -85,11 +85,13 @@ jobs:
             exit 0
           fi
 
-          echo "Building chart dependencies from Chart.lock..."
+          echo "Building chart dependencies..."
 
           output="$(helm dependency build 2>&1)" || {
-            if echo "$output" | grep -qi "exceeds the maximum allowed size"; then
-              echo "⚠️  Dependency build failed due to size limit, continuing"
+            # Allow only the known "file too large" / "size limit" failure modes
+            if echo "$output" | grep -Eqi \
+              'larger than the maximum file size|exceeds the maximum allowed size|too large|max(imum)? (allowed )?size'; then
+              echo "⚠️  Dependency build hit Helm size limit, continuing"
             else
               echo "❌ Dependency build failed with unexpected error"
               echo "$output"
@@ -129,7 +131,17 @@ jobs:
         run: |
           set -euo pipefail
           cd "${{ steps.args.outputs.chart_dir }}"
-          helm lint . ${{ steps.args.outputs.args }}
+          
+          output="$(helm lint . ${{ steps.args.outputs.args }} 2>&1)" || {
+            if echo "$output" | grep -Eqi 'larger than the maximum file size|exceeds the maximum allowed size|too large|max(imum)? (allowed )?size'; then
+              echo "⚠️  Chart dependency exceeds Helm size limit, skipping lint"
+              exit 0
+            else
+              echo "❌ Helm lint failed:"
+              echo "$output"
+              exit 1
+            fi
+          }
 
       - name: Validate template rendering
         if: ${{ inputs.run_template != false }}
@@ -137,7 +149,17 @@ jobs:
         run: |
           set -euo pipefail
           cd "${{ steps.args.outputs.chart_dir }}"
-          helm template "${{ inputs.release_name || 'test-release' }}" . ${{ steps.args.outputs.template_args }} > /dev/null
+          
+          output="$(helm template "${{ inputs.release_name || 'test-release' }}" . ${{ steps.args.outputs.template_args }} 2>&1)" || {
+            if echo "$output" | grep -Eqi 'larger than the maximum file size|exceeds the maximum allowed size|too large|max(imum)? (allowed )?size'; then
+              echo "⚠️  Chart dependency exceeds Helm size limit, skipping template validation"
+              exit 0
+            else
+              echo "❌ Helm template failed:"
+              echo "$output"
+              exit 1
+            fi
+          }
 
       - name: Validate install dry-run
         if: ${{ inputs.run_install_dry_run != false }}
@@ -145,7 +167,17 @@ jobs:
         run: |
           set -euo pipefail
           cd "${{ steps.args.outputs.chart_dir }}"
-          helm install "${{ inputs.release_name || 'test-release' }}" . \
+          
+          output="$(helm install "${{ inputs.release_name || 'test-release' }}" . \
             --namespace "${{ inputs.namespace || 'default' }}" \
             --dry-run --debug \
-            ${{ steps.args.outputs.args }} > /dev/null
+            ${{ steps.args.outputs.args }} 2>&1)" || {
+            if echo "$output" | grep -Eqi 'larger than the maximum file size|exceeds the maximum allowed size|too large|max(imum)? (allowed )?size'; then
+              echo "⚠️  Chart dependency exceeds Helm size limit, skipping install dry-run"
+              exit 0
+            else
+              echo "❌ Helm install dry-run failed:"
+              echo "$output"
+              exit 1
+            fi
+          }

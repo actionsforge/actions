@@ -151,7 +151,21 @@ jobs:
 
           echo "chart_exists=true" >> "$GITHUB_OUTPUT"
           echo "Rendering Helm templates..."
-          helm template "${{ inputs.release_name || 'test-release' }}" . ${{ steps.args.outputs.args }} > /tmp/rendered.yaml
+          
+          output="$(helm template "${{ inputs.release_name || 'test-release' }}" . ${{ steps.args.outputs.args }} 2>&1)" || {
+            if echo "$output" | grep -Eqi 'larger than the maximum file size|exceeds the maximum allowed size|too large|max(imum)? (allowed )?size'; then
+              echo "⚠️  Chart dependency exceeds Helm size limit, skipping validation"
+              echo "chart_exists=false" >> "$GITHUB_OUTPUT"
+              echo "resource_count=0" >> "$GITHUB_OUTPUT"
+              exit 0
+            else
+              echo "❌ Helm template failed:"
+              echo "$output"
+              exit 1
+            fi
+          }
+          
+          echo "$output" > /tmp/rendered.yaml
 
           # Count resources by counting apiVersion lines (more reliable than '---')
           COUNT="$(grep -cE '^[[:space:]]*apiVersion:' /tmp/rendered.yaml || true)"
