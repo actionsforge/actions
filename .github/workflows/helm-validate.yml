@@ -1,0 +1,124 @@
+name: Helm Lint and Validate
+
+on:
+  pull_request:
+    paths:
+      - "Chart.yaml"
+      - "values.yaml"
+      - "templates/**"
+      - ".github/workflows/helm-lint-validate.yml"
+  workflow_call:
+    inputs:
+      chart_dir:
+        description: "Chart directory (relative path)"
+        type: string
+        required: false
+        default: "."
+      helm_version:
+        description: "Helm version (e.g., 3.15.4 or latest)"
+        type: string
+        required: false
+        default: "latest"
+      release_name:
+        description: "Release name used for template/install validation"
+        type: string
+        required: false
+        default: "test-release"
+      namespace:
+        description: "Namespace used for install dry-run"
+        type: string
+        required: false
+        default: "default"
+      values_file:
+        description: "Optional values file (relative path). If empty, no -f is used"
+        type: string
+        required: false
+        default: ""
+      kube_version:
+        description: "Optional Kubernetes version for rendering (e.g., 1.29.0). If empty, not set"
+        type: string
+        required: false
+        default: ""
+      run_lint:
+        description: "Run helm lint"
+        type: boolean
+        required: false
+        default: true
+      run_template:
+        description: "Run helm template validation"
+        type: boolean
+        required: false
+        default: true
+      run_install_dry_run:
+        description: "Run helm install --dry-run --debug validation"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Helm Chart
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ inputs.helm_version || 'latest' }}
+
+      - name: Build Helm args
+        id: args
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHART_DIR="${{ inputs.chart_dir || '.' }}"
+          VALUES_FILE="${{ inputs.values_file || '' }}"
+          KUBE_VERSION="${{ inputs.kube_version || '' }}"
+
+          ARGS=()
+          if [ -n "${VALUES_FILE}" ]; then
+            ARGS+=("-f" "${VALUES_FILE}")
+          fi
+
+          if [ -n "${KUBE_VERSION}" ]; then
+            ARGS+=("--kube-version" "${KUBE_VERSION}")
+          fi
+
+          echo "chart_dir=${CHART_DIR}" >> "$GITHUB_OUTPUT"
+          echo "args=${ARGS[*]}" >> "$GITHUB_OUTPUT"
+
+      - name: Helm lint
+        if: ${{ inputs.run_lint != false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${{ steps.args.outputs.chart_dir }}"
+          helm lint . ${{ steps.args.outputs.args }}
+
+      - name: Validate template rendering
+        if: ${{ inputs.run_template != false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${{ steps.args.outputs.chart_dir }}"
+          helm template "${{ inputs.release_name || 'test-release' }}" . ${{ steps.args.outputs.args }} > /dev/null
+
+      - name: Validate install dry-run
+        if: ${{ inputs.run_install_dry_run != false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${{ steps.args.outputs.chart_dir }}"
+          helm install "${{ inputs.release_name || 'test-release' }}" . \
+            --namespace "${{ inputs.namespace || 'default' }}" \
+            --dry-run --debug \
+            ${{ steps.args.outputs.args }} > /dev/null
