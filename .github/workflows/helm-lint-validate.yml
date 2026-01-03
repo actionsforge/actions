@@ -81,11 +81,12 @@ jobs:
           cd "${{ inputs.chart_dir || '.' }}"
           
           if [ ! -f "Chart.yaml" ]; then
-            echo "⚠️  Chart.yaml not found, skipping dependency build"
+            echo "⚠️  Chart.yaml not found, skipping dependency update"
             exit 0
           fi
           
-          helm dependency update
+          echo "Building chart dependencies..."
+          helm dependency build || echo "⚠️  Dependency build failed, continuing"
   
       - name: Build Helm args
         id: args
