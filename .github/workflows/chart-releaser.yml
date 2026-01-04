@@ -4,9 +4,10 @@ on:
   workflow_call:
     inputs:
       charts_dir:
+        description: "Directory containing Helm charts (e.g., 'charts' or '.')"
         type: string
         required: false
-        default: "."
+        default: "charts"
     secrets:
       cr_token:
         required: true
@@ -31,13 +32,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
           version: latest
 
-      - name: Add repositories
+      - name: Add Helm Repositories
+        shell: bash
         run: |
           set -euo pipefail
           REPOS_FILE=$(mktemp)
@@ -46,7 +47,7 @@ jobs:
           find charts -name "Chart.yaml" -type f | while IFS= read -r chart_file; do
             if grep -q "dependencies:" "$chart_file"; then
               grep -A 50 "dependencies:" "$chart_file" | grep "repository:" | \
-                sed -E 's/.*repository:[[:space:]]]*["'\'']?([^"'\'']+)["'\'']?[[:space:]]*$/\1/' | \
+                sed -E 's/.*repository:[[:space:]]*["'\'']?([^"'\'']+)["'\'']?[[:space:]]*$/\1/' | \
                 grep -E '^https?://' >> "${REPOS_FILE}" || true
             fi
           done
@@ -67,17 +68,19 @@ jobs:
       - name: Update Helm repositories
         run: helm repo update
 
-      - name: Build chart dependencies
+      - name: Build and Unpack Chart Dependencies
+        shell: bash
         run: |
           set -euo pipefail
-          for dir in $(ls -d charts/*/); do
+          for dir in charts/*/; do
+            [ ! -d "$dir" ] && continue
             echo "Processing chart: ${dir}"
+            
+            # Build or update dependencies
             if [ -f "${dir}/Chart.lock" ]; then
               echo "Chart.lock found, using helm dependency build"
-              if helm dependency build "$dir"; then
-                echo "✅ Dependencies built successfully"
-              else
-                echo "❌ Failed to build dependencies, trying update instead"
+              if ! helm dependency build "$dir"; then
+                echo "Build failed, trying update instead"
                 helm dependency update "$dir"
               fi
             else
@@ -85,29 +88,24 @@ jobs:
               helm dependency update "$dir"
             fi
             
-            # Verify dependencies were downloaded
-            if [ -d "${dir}/charts" ] && [ "$(ls -A ${dir}/charts 2>/dev/null)" ]; then
-              echo "✅ Dependencies found in ${dir}/charts:"
-              ls -la "${dir}/charts"
-              
-              # Unpack .tgz files to directories (chart-releaser expects unpacked dependencies)
+            # Unpack .tgz files to directories (chart-releaser expects unpacked dependencies)
+            if [ -d "${dir}/charts" ] && [ -n "$(ls -A ${dir}/charts/*.tgz 2>/dev/null)" ]; then
+              echo "Unpacking dependencies in ${dir}/charts"
               cd "${dir}/charts"
               for tgz in *.tgz; do
-                if [ -f "$tgz" ]; then
-                  dirname="${tgz%.tgz}"
-                  echo "Unpacking ${tgz} to ${dirname}"
-                  mkdir -p "${dirname}"
-                  tar -xzf "${tgz}" -C "${dirname}" --strip-components=1
-                  rm -f "${tgz}"
-                fi
+                [ ! -f "$tgz" ] && continue
+                dirname="${tgz%.tgz}"
+                echo "  Unpacking ${tgz} -> ${dirname}/"
+                mkdir -p "${dirname}"
+                tar -xzf "${tgz}" -C "${dirname}" --strip-components=1
+                rm -f "${tgz}"
               done
               cd - > /dev/null
-            else
-              echo "⚠️  No dependencies found in ${dir}/charts"
+              echo "✅ Dependencies unpacked successfully"
             fi
           done
 
-      - name: Run chart-releaser
+      - name: Run Chart-Releaser
         uses: helm/chart-releaser-action@v1.7.0
         with:
           charts_dir: ${{ inputs.charts_dir }}
