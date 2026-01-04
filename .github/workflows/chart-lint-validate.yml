@@ -1,13 +1,6 @@
 name: Chart Lint and Validate
 
 on:
-  pull_request:
-    paths:
-      - "Chart.yaml"
-      - "values.yaml"
-      - "templates/**"
-      - "charts/**"
-      - ".github/workflows/chart-lint-validate.yml"
   workflow_call:
     inputs:
       chart_dirs:
