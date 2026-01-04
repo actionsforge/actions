@@ -23,16 +23,6 @@ on:
         type: string
         required: false
         default: "3.x"
-      chart_testing_version:
-        description: "Chart-testing action version"
-        type: string
-        required: false
-        default: "v2.8.0"
-      kind_action_version:
-        description: "Kind action version"
-        type: string
-        required: false
-        default: "v1.13.0"
       run_lint:
         description: "Run chart lint validation"
         type: boolean
@@ -43,11 +33,6 @@ on:
         type: boolean
         required: false
         default: true
-      skip_missing_values:
-        description: "Skip missing value files in chart-testing"
-        type: boolean
-        required: false
-        default: false
 
 permissions:
   contents: read
@@ -55,7 +40,9 @@ permissions:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: ${{ inputs.chart_dirs }}
     permissions:
       contents: read
 
@@ -86,8 +73,7 @@ jobs:
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
           changed="$(ct list-changed \
-            --target-branch "${TARGET_BRANCH}" \
-            --chart-dirs "${{ inputs.chart_dirs }}")"
+            --target-branch "${TARGET_BRANCH}")"
           if [ -n "$changed" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
@@ -100,11 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
-          ARGS=("--target-branch" "${TARGET_BRANCH}" "--chart-dirs" "${{ inputs.chart_dirs }}")
-          if [ "${{ github.event_name }}" = "workflow_call" ] && [ "${{ inputs.skip_missing_values || 'false' }}" = "true" ]; then
-            ARGS+=("--skip-missing-values")
-          fi
-          ct lint "${ARGS[@]}"
+          ct lint --target-branch "${TARGET_BRANCH}"
 
       - name: Create Kind cluster
         if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_install != false) }}
@@ -116,8 +98,4 @@ jobs:
         run: |
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
-          ARGS=("--target-branch" "${TARGET_BRANCH}" "--chart-dirs" "${{ inputs.chart_dirs }}")
-          if [ "${{ github.event_name }}" = "workflow_call" ] && [ "${{ inputs.skip_missing_values || 'false' }}" = "true" ]; then
-            ARGS+=("--skip-missing-values")
-          fi
-          ct install "${ARGS[@]}"
+          ct install --target-branch "${TARGET_BRANCH}"
