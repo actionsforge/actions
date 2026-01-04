@@ -55,9 +55,7 @@ permissions:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: "${GITHUB_WORKSPACE}/${{ inputs.chart_dirs }}"
+
     permissions:
       contents: read
 
@@ -88,7 +86,8 @@ jobs:
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
           changed="$(ct list-changed \
-            --target-branch "${TARGET_BRANCH}")"
+            --target-branch "${TARGET_BRANCH}" \
+            --chart-dirs "${{ inputs.chart_dirs }}")"
           if [ -n "$changed" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
@@ -101,7 +100,7 @@ jobs:
         run: |
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
-          ARGS=("--target-branch" "${TARGET_BRANCH}")
+          ARGS=("--target-branch" "${TARGET_BRANCH}" "--chart-dirs" "${{ inputs.chart_dirs }}")
           if [ "${{ github.event_name }}" = "workflow_call" ] && [ "${{ inputs.skip_missing_values || 'false' }}" = "true" ]; then
             ARGS+=("--skip-missing-values")
           fi
@@ -117,7 +116,7 @@ jobs:
         run: |
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
-          ARGS=("--target-branch" "${TARGET_BRANCH}")
+          ARGS=("--target-branch" "${TARGET_BRANCH}" "--chart-dirs" "${{ inputs.chart_dirs }}")
           if [ "${{ github.event_name }}" = "workflow_call" ] && [ "${{ inputs.skip_missing_values || 'false' }}" = "true" ]; then
             ARGS+=("--skip-missing-values")
           fi
