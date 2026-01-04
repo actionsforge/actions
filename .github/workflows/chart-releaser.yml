@@ -89,6 +89,19 @@ jobs:
             if [ -d "${dir}/charts" ] && [ "$(ls -A ${dir}/charts 2>/dev/null)" ]; then
               echo "✅ Dependencies found in ${dir}/charts:"
               ls -la "${dir}/charts"
+              
+              # Unpack .tgz files to directories (chart-releaser expects unpacked dependencies)
+              cd "${dir}/charts"
+              for tgz in *.tgz; do
+                if [ -f "$tgz" ]; then
+                  dirname="${tgz%.tgz}"
+                  echo "Unpacking ${tgz} to ${dirname}"
+                  mkdir -p "${dirname}"
+                  tar -xzf "${tgz}" -C "${dirname}" --strip-components=1
+                  rm -f "${tgz}"
+                fi
+              done
+              cd - > /dev/null
             else
               echo "⚠️  No dependencies found in ${dir}/charts"
             fi
