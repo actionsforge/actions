@@ -69,13 +69,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
-          changed="$(ct list-changed \
-            --target-branch "${TARGET_BRANCH}")"
-          if [ -n "$changed" ]; then
+          changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
+          if [[ -n "$changed" ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run Chart-Testing (lint)
@@ -84,8 +80,7 @@ jobs:
         working-directory: ${{ inputs.chart_dirs }}
         run: |
           set -euo pipefail
-          TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
-          ct lint --target-branch "${TARGET_BRANCH}"
+          ct lint --target-branch ${{ github.event.repository.default_branch }}
 
       - name: Create Kind cluster
         if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_install != false) }}
@@ -97,5 +92,4 @@ jobs:
         working-directory: ${{ inputs.chart_dirs }}
         run: |
           set -euo pipefail
-          TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
-          ct install --target-branch "${TARGET_BRANCH}"
+          ct install --target-branch ${{ github.event.repository.default_branch }}
