@@ -69,8 +69,15 @@ jobs:
 
       - name: Build chart dependencies
         run: |
+          set -euo pipefail
           for dir in $(ls -d charts/*/); do
-            helm dependency build "$dir" || true
+            if [ -f "${dir}/Chart.lock" ]; then
+              echo "Chart.lock found, using helm dependency build for ${dir}"
+              helm dependency build "$dir" || true
+            else
+              echo "Chart.lock not found, using helm dependency update for ${dir}"
+              helm dependency update "$dir" || true
+            fi
           done
 
       - name: Run chart-releaser
