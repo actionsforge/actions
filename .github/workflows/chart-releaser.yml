@@ -31,24 +31,28 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Verify chart-releaser config
+      - name: Determine charts directory
+        id: charts-dir
         shell: bash
         run: |
           set -euo pipefail
-          if [ -f ".cr.yaml" ]; then
-            echo "Found .cr.yaml config:"
-            cat .cr.yaml
+          INPUT_DIR="${{ inputs.charts_dir }}"
+          
+          # If the directory contains Chart.yaml directly, it's a specific chart - use parent
+          if [ -f "${INPUT_DIR}/Chart.yaml" ]; then
+            CHARTS_DIR=$(dirname "${INPUT_DIR}")
+            echo "Input points to specific chart, using parent directory: ${CHARTS_DIR}"
           else
-            echo "WARNING: .cr.yaml not found in repository root"
+            CHARTS_DIR="${INPUT_DIR}"
+            echo "Using charts directory: ${CHARTS_DIR}"
           fi
-          echo ""
-          echo "Charts directory: ${{ inputs.charts_dir }}"
-          echo "Looking for Chart.yaml files:"
-          find "${{ inputs.charts_dir }}" -name "Chart.yaml" -type f -maxdepth 2 || true
+          
+          echo "charts_dir=${CHARTS_DIR}" >> "$GITHUB_OUTPUT"
+          echo "Final charts directory: ${CHARTS_DIR}"
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
         with:
-          charts_dir: ${{ inputs.charts_dir }}
+          charts_dir: ${{ steps.charts-dir.outputs.charts_dir }}
         env:
           CR_TOKEN: "${{ secrets.cr_token }}"
