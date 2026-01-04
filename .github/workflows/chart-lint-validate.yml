@@ -88,8 +88,7 @@ jobs:
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
           changed="$(ct list-changed \
-            --target-branch "${TARGET_BRANCH}" \
-            --chart-dirs "${{ inputs.chart_dirs }}")"
+            --target-branch "${TARGET_BRANCH}")"
           if [ -n "$changed" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
@@ -102,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
-          ARGS=("--target-branch" "${TARGET_BRANCH}" "--chart-dirs" "${{ inputs.chart_dirs }}")
+          ARGS=("--target-branch" "${TARGET_BRANCH}")
           if [ "${{ github.event_name }}" = "workflow_call" ] && [ "${{ inputs.skip_missing_values || 'false' }}" = "true" ]; then
             ARGS+=("--skip-missing-values")
           fi
@@ -118,7 +117,7 @@ jobs:
         run: |
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
-          ARGS=("--target-branch" "${TARGET_BRANCH}" "--chart-dirs" "${{ inputs.chart_dirs }}")
+          ARGS=("--target-branch" "${TARGET_BRANCH}")
           if [ "${{ github.event_name }}" = "workflow_call" ] && [ "${{ inputs.skip_missing_values || 'false' }}" = "true" ]; then
             ARGS+=("--skip-missing-values")
           fi
