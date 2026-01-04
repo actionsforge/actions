@@ -7,7 +7,7 @@ on:
         type: string
         required: true
     secrets:
-      github_token:
+      cr_token:
         required: true
 
 jobs:
@@ -35,4 +35,4 @@ jobs:
         with:
           charts_dir: ${{ inputs.charts_dir }}
         env:
-          CR_TOKEN: "${{ secrets.github_token }}"
+          CR_TOKEN: "${{ secrets.cr_token }}"
