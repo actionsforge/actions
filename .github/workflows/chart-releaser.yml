@@ -1,0 +1,38 @@
+name: Chart Releaser
+
+on:
+  workflow_call:
+    inputs:
+      charts_dir:
+        type: string
+        required: true
+    secrets:
+      github_token:
+        required: true
+
+jobs:
+  release:
+    name: Chart Releaser
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.7.0
+        with:
+          charts_dir: ${{ inputs.charts_dir }}
+        env:
+          CR_TOKEN: "${{ secrets.github_token }}"
