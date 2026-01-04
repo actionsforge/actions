@@ -3,7 +3,7 @@ name: Chart Releaser
 on:
   workflow_call:
     inputs:
-      chart_dir:
+      charts_dir:
         type: string
         required: true
     secrets:
@@ -33,6 +33,6 @@ jobs:
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
         with:
-          chart_dir: ${{ inputs.chart_dir }}
+          charts_dir: ${{ inputs.charts_dir }}
         env:
           CR_TOKEN: "${{ secrets.cr_token }}"
