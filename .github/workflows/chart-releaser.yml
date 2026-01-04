@@ -31,6 +31,21 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Verify chart-releaser config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f ".cr.yaml" ]; then
+            echo "Found .cr.yaml config:"
+            cat .cr.yaml
+          else
+            echo "WARNING: .cr.yaml not found in repository root"
+          fi
+          echo ""
+          echo "Charts directory: ${{ inputs.charts_dir }}"
+          echo "Looking for Chart.yaml files:"
+          find "${{ inputs.charts_dir }}" -name "Chart.yaml" -type f -maxdepth 2 || true
+
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
         with:
