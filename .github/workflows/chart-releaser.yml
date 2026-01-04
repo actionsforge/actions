@@ -61,25 +61,47 @@ jobs:
           set -euo pipefail
           CHARTS_DIR="${{ steps.charts-dir.outputs.charts_dir }}"
           
-          # Find all Chart.yaml files and extract repository URLs
-          find "${CHARTS_DIR}" -name "Chart.yaml" -type f | while read chart_file; do
+          echo "Scanning for Chart.yaml files in: ${CHARTS_DIR}"
+          
+          # Extract all repository URLs to a temp file to avoid subshell issues
+          REPOS_FILE=$(mktemp)
+          
+          find "${CHARTS_DIR}" -name "Chart.yaml" -type f | while IFS= read -r chart_file; do
+            echo "Checking: ${chart_file}"
             if grep -q "dependencies:" "$chart_file"; then
-              grep -A 50 "dependencies:" "$chart_file" | grep "repository:" | sed 's/.*repository:[[:space:]]*//' | sed 's/[[:space:]]*$//' | while read repo_url; do
-                if [ -n "$repo_url" ] && [[ "$repo_url" =~ ^https?:// ]]; then
-                  # Generate a safe repo name from URL
-                  repo_name=$(echo "$repo_url" | sed 's|https\?://||' | sed 's|/.*||' | sed 's|[^a-zA-Z0-9]|-|g' | tr '[:upper:]' '[:lower:]')
-                  if ! helm repo list | grep -q "^${repo_name}[[:space:]]"; then
-                    echo "Adding Helm repository: ${repo_name} -> ${repo_url}"
-                    helm repo add "${repo_name}" "${repo_url}" || true
-                  fi
-                fi
-              done
+              echo "Found dependencies in ${chart_file}"
+              # Extract repository URLs - handle quoted and unquoted values
+              grep -A 50 "dependencies:" "$chart_file" | grep "repository:" | \
+                sed -E 's/.*repository:[[:space:]]*["'\'']?([^"'\'']+)["'\'']?[[:space:]]*$/\1/' | \
+                grep -E '^https?://' >> "${REPOS_FILE}" || true
             fi
           done
           
-          if helm repo list | grep -q .; then
+          # Add unique repositories
+          if [ -s "${REPOS_FILE}" ]; then
+            echo "Found repositories:"
+            cat "${REPOS_FILE}"
+            sort -u "${REPOS_FILE}" | while IFS= read -r repo_url; do
+              repo_name=$(echo "$repo_url" | sed 's|https\?://||' | sed 's|/.*||' | sed 's|[^a-zA-Z0-9]|-|g' | tr '[:upper:]' '[:lower:]')
+              if ! helm repo list 2>/dev/null | grep -q "^${repo_name}[[:space:]]"; then
+                echo "Adding Helm repository: ${repo_name} -> ${repo_url}"
+                helm repo add "${repo_name}" "${repo_url}" || true
+              else
+                echo "Repository ${repo_name} already exists"
+              fi
+            done
+          else
+            echo "No repositories found in chart dependencies"
+          fi
+          
+          rm -f "${REPOS_FILE}"
+          
+          echo "Current Helm repositories:"
+          helm repo list || true
+          
+          if helm repo list 2>/dev/null | grep -q .; then
             echo "Updating Helm repositories..."
-            helm repo update
+            helm repo update || true
           fi
 
       - name: Run chart-releaser
