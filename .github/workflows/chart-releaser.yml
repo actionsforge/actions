@@ -71,12 +71,26 @@ jobs:
         run: |
           set -euo pipefail
           for dir in $(ls -d charts/*/); do
+            echo "Processing chart: ${dir}"
             if [ -f "${dir}/Chart.lock" ]; then
-              echo "Chart.lock found, using helm dependency build for ${dir}"
-              helm dependency build "$dir" || true
+              echo "Chart.lock found, using helm dependency build"
+              if helm dependency build "$dir"; then
+                echo "✅ Dependencies built successfully"
+              else
+                echo "❌ Failed to build dependencies, trying update instead"
+                helm dependency update "$dir"
+              fi
             else
-              echo "Chart.lock not found, using helm dependency update for ${dir}"
-              helm dependency update "$dir" || true
+              echo "Chart.lock not found, using helm dependency update"
+              helm dependency update "$dir"
+            fi
+            
+            # Verify dependencies were downloaded
+            if [ -d "${dir}/charts" ] && [ "$(ls -A ${dir}/charts 2>/dev/null)" ]; then
+              echo "✅ Dependencies found in ${dir}/charts:"
+              ls -la "${dir}/charts"
+            else
+              echo "⚠️  No dependencies found in ${dir}/charts"
             fi
           done
 
