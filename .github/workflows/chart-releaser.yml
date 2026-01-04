@@ -31,6 +31,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: latest
+
       - name: Determine charts directory
         id: charts-dir
         shell: bash
@@ -49,6 +54,33 @@ jobs:
           
           echo "charts_dir=${CHARTS_DIR}" >> "$GITHUB_OUTPUT"
           echo "Final charts directory: ${CHARTS_DIR}"
+
+      - name: Add Helm repositories from chart dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHARTS_DIR="${{ steps.charts-dir.outputs.charts_dir }}"
+          
+          # Find all Chart.yaml files and extract repository URLs
+          find "${CHARTS_DIR}" -name "Chart.yaml" -type f | while read chart_file; do
+            if grep -q "dependencies:" "$chart_file"; then
+              grep -A 50 "dependencies:" "$chart_file" | grep "repository:" | sed 's/.*repository:[[:space:]]*//' | sed 's/[[:space:]]*$//' | while read repo_url; do
+                if [ -n "$repo_url" ] && [[ "$repo_url" =~ ^https?:// ]]; then
+                  # Generate a safe repo name from URL
+                  repo_name=$(echo "$repo_url" | sed 's|https\?://||' | sed 's|/.*||' | sed 's|[^a-zA-Z0-9]|-|g' | tr '[:upper:]' '[:lower:]')
+                  if ! helm repo list | grep -q "^${repo_name}[[:space:]]"; then
+                    echo "Adding Helm repository: ${repo_name} -> ${repo_url}"
+                    helm repo add "${repo_name}" "${repo_url}" || true
+                  fi
+                fi
+              done
+            fi
+          done
+          
+          if helm repo list | grep -q .; then
+            echo "Updating Helm repositories..."
+            helm repo update
+          fi
 
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@v1.7.0
