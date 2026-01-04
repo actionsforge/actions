@@ -40,9 +40,7 @@ permissions:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ inputs.chart_dirs }}
+
     permissions:
       contents: read
 
@@ -83,6 +81,7 @@ jobs:
       - name: Run Chart-Testing (lint)
         if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_lint != false) }}
         shell: bash
+        working-directory: ${{ inputs.chart_dirs }}
         run: |
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
@@ -95,6 +94,7 @@ jobs:
       - name: Run Chart-Testing (install)
         if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_install != false) }}
         shell: bash
+        working-directory: ${{ inputs.chart_dirs }}
         run: |
           set -euo pipefail
           TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
