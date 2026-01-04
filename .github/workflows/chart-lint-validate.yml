@@ -1,0 +1,122 @@
+name: Chart Lint and Validate
+
+on:
+  pull_request:
+    paths:
+      - "Chart.yaml"
+      - "values.yaml"
+      - "templates/**"
+      - "charts/**"
+      - ".github/workflows/chart-lint-validate.yml"
+  workflow_call:
+    inputs:
+      target_branch:
+        description: "Target branch for chart-testing (defaults to repository default branch)"
+        type: string
+        required: false
+        default: ""
+      helm_version:
+        description: "Helm version (e.g., 3.15.4 or latest)"
+        type: string
+        required: false
+        default: "latest"
+      python_version:
+        description: "Python version for chart-testing"
+        type: string
+        required: false
+        default: "3.x"
+      chart_testing_version:
+        description: "Chart-testing action version"
+        type: string
+        required: false
+        default: "v2.8.0"
+      kind_action_version:
+        description: "Kind action version"
+        type: string
+        required: false
+        default: "v1.13.0"
+      run_lint:
+        description: "Run chart lint validation"
+        type: boolean
+        required: false
+        default: true
+      run_install:
+        description: "Run chart install validation"
+        type: boolean
+        required: false
+        default: true
+      skip_missing_values:
+        description: "Skip missing value files in chart-testing"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ inputs.helm_version || 'latest' }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ inputs.python_version || '3.x' }}
+          check-latest: true
+
+      - name: Set up Chart-Testing
+        uses: helm/chart-testing-action@v2.8.0
+
+      - name: Run Chart-Testing (list-changed)
+        id: list-changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
+          changed="$(ct list-changed --target-branch "${TARGET_BRANCH}")"
+          if [ -n "$changed" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Chart-Testing (lint)
+        if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_lint != false) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
+          ARGS=("--target-branch" "${TARGET_BRANCH}")
+          if [ "${{ github.event_name }}" = "workflow_call" ] && [ "${{ inputs.skip_missing_values || 'false' }}" = "true" ]; then
+            ARGS+=("--skip-missing-values")
+          fi
+          ct lint "${ARGS[@]}"
+
+      - name: Create Kind cluster
+        if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_install != false) }}
+        uses: helm/kind-action@v1.13.0
+
+      - name: Run Chart-Testing (install)
+        if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_install != false) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_BRANCH="${{ inputs.target_branch || github.event.repository.default_branch }}"
+          ARGS=("--target-branch" "${TARGET_BRANCH}")
+          if [ "${{ github.event_name }}" = "workflow_call" ] && [ "${{ inputs.skip_missing_values || 'false' }}" = "true" ]; then
+            ARGS+=("--skip-missing-values")
+          fi
+          ct install "${ARGS[@]}"
