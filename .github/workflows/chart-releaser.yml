@@ -114,7 +114,6 @@ jobs:
           # Check if branch exists remotely
           if git ls-remote --heads origin "${BRANCH}" | grep -q "${BRANCH}"; then
             echo "Branch ${BRANCH} already exists, skipping initialization"
-            git fetch origin "${BRANCH}:${BRANCH}" || true
           else
             echo "Branch ${BRANCH} does not exist, creating it"
             # Create orphan branch (no parent commits)
@@ -127,9 +126,6 @@ jobs:
             git push origin "${BRANCH}"
             echo "✅ Created and pushed ${BRANCH} branch"
           fi
-          
-          # Switch back to the original branch/commit
-          git checkout - || git checkout main || git checkout master || true
 
       - name: Run Chart-Releaser
         uses: helm/chart-releaser-action@v1.7.0
