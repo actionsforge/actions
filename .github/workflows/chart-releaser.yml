@@ -143,6 +143,37 @@ jobs:
             echo "✅ Created and pushed ${BRANCH} branch"
           fi
 
+      - name: Create initial tag if none exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Check if any tags exist
+          if ! git tag | grep -q .; then
+            echo "No tags found, creating initial tag from Chart.yaml version"
+            # Find first Chart.yaml and extract version
+            CHART_FILE=$(find charts -name "Chart.yaml" -type f | head -n 1)
+            if [ -n "$CHART_FILE" ]; then
+              VERSION=$(grep "^version:" "$CHART_FILE" | sed 's/^version:[[:space:]]*//' | tr -d '"'"'"')
+              if [ -n "$VERSION" ]; then
+                TAG="v${VERSION}"
+                echo "Creating tag ${TAG} from Chart.yaml version ${VERSION}"
+                git tag -a "${TAG}" -m "Initial tag for chart-releaser (from Chart.yaml)"
+                git push origin "${TAG}"
+                echo "✅ Created initial tag ${TAG}"
+              else
+                echo "⚠️  Could not extract version from Chart.yaml, using v0.0.0"
+                git tag -a "v0.0.0" -m "Initial tag for chart-releaser"
+                git push origin "v0.0.0"
+              fi
+            else
+              echo "⚠️  No Chart.yaml found, using v0.0.0"
+              git tag -a "v0.0.0" -m "Initial tag for chart-releaser"
+              git push origin "v0.0.0"
+            fi
+          else
+            echo "Tags already exist, skipping initial tag creation"
+          fi
+
       - name: Run Chart-Releaser
         uses: helm/chart-releaser-action@v1.7.0
         with:
