@@ -153,7 +153,7 @@ jobs:
             # Find first Chart.yaml and extract version
             CHART_FILE=$(find charts -name "Chart.yaml" -type f | head -n 1)
             if [ -n "$CHART_FILE" ]; then
-              VERSION=$(grep "^version:" "$CHART_FILE" | sed 's/^version:[[:space:]]*//' | tr -d '"'"'"')
+              VERSION=$(grep "^version:" "$CHART_FILE" | sed -E 's/^version:[[:space:]]*["'\'']?([^"'\'']+)["'\'']?[[:space:]]*$/\1/')
               if [ -n "$VERSION" ]; then
                 TAG="v${VERSION}"
                 echo "Creating tag ${TAG} from Chart.yaml version ${VERSION}"
