@@ -38,6 +38,7 @@ jobs:
           version: latest
 
       - name: Add Helm Repositories
+        id: add-repos
         shell: bash
         run: |
           set -euo pipefail
@@ -54,18 +55,25 @@ jobs:
           
           # Add unique repositories
           if [ -s "${REPOS_FILE}" ]; then
-            sort -u "${REPOS_FILE}" | while IFS= read -r repo_url; do
+            REPOS_ADDED=false
+            while IFS= read -r repo_url; do
               repo_name=$(echo "$repo_url" | sed 's|https\?://||' | sed 's|/.*||' | sed 's|[^a-zA-Z0-9]|-|g' | tr '[:upper:]' '[:lower:]')
               if ! helm repo list 2>/dev/null | grep -q "^${repo_name}[[:space:]]"; then
                 echo "Adding Helm repository: ${repo_name} -> ${repo_url}"
                 helm repo add "${repo_name}" "${repo_url}" || true
+                REPOS_ADDED=true
               fi
-            done
+            done < <(sort -u "${REPOS_FILE}")
+            echo "repos_added=${REPOS_ADDED}" >> "$GITHUB_OUTPUT"
+          else
+            echo "No dependencies found in charts, skipping repository addition"
+            echo "repos_added=false" >> "$GITHUB_OUTPUT"
           fi
           
           rm -f "${REPOS_FILE}"
 
       - name: Update Helm Repositories
+        if: steps.add-repos.outputs.repos_added == 'true'
         run: helm repo update
 
       - name: Build and Unpack Chart Dependencies
@@ -76,16 +84,22 @@ jobs:
             [ ! -d "$dir" ] && continue
             echo "Processing chart: ${dir}"
             
+            # Check if chart has dependencies
+            if ! grep -q "dependencies:" "${dir}/Chart.yaml" 2>/dev/null; then
+              echo "Chart has no dependencies, skipping"
+              continue
+            fi
+            
             # Build or update dependencies
             if [ -f "${dir}/Chart.lock" ]; then
               echo "Chart.lock found, using helm dependency build"
-              if ! helm dependency build "$dir"; then
+              if ! helm dependency build "$dir" 2>/dev/null; then
                 echo "Build failed, trying update instead"
-                helm dependency update "$dir"
+                helm dependency update "$dir" 2>/dev/null || echo "No dependencies to update"
               fi
             else
               echo "Chart.lock not found, using helm dependency update"
-              helm dependency update "$dir"
+              helm dependency update "$dir" 2>/dev/null || echo "No dependencies to update"
             fi
             
             # Unpack .tgz files to directories (chart-releaser expects unpacked dependencies)
@@ -102,6 +116,8 @@ jobs:
               done
               cd - > /dev/null
               echo "✅ Dependencies unpacked successfully"
+            else
+              echo "No dependencies to unpack"
             fi
           done
 
