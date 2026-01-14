@@ -1,0 +1,42 @@
+name: YAML Lint
+
+on:
+  workflow_call:
+    inputs:
+      yamllint_file_or_dir:
+        description: "File or directory to lint (defaults to repository root)"
+        type: string
+        required: false
+        default: "."
+      yamllint_config_filepath:
+        description: "Path to yamllint configuration file"
+        type: string
+        required: false
+        default: ".yamllint"
+      yamllint_format:
+        description: "Output format for yamllint (github, standard, etc.)"
+        type: string
+        required: false
+        default: "github"
+      yamllint_strict:
+        description: "Enable strict mode for yamllint"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  lint:
+    name: Lint YAML files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Run yamllint
+        uses: karancode/yamllint-github-action@v2.1.0
+        with:
+          yamllint_file_or_dir: ${{ inputs.yamllint_file_or_dir || '.' }}
+          yamllint_config_filepath: ${{ inputs.yamllint_config_filepath || '.yamllint' }}
+          yamllint_format: ${{ inputs.yamllint_format || 'github' }}
+          yamllint_strict: ${{ inputs.yamllint_strict || false }}
