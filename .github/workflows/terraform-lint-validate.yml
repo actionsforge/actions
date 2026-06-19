@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7
 
       - name: Check Terraform Formatting
-        uses: dflook/terraform-fmt-check@v2
+        uses: dflook/terraform-fmt-check@59168426e242f665bf7b70644d706224e665056a #v2.2.3
         with:
           path: ${{ inputs.path }}
 
