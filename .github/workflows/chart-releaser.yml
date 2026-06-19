@@ -175,7 +175,7 @@ jobs:
           fi
 
       - name: Run Chart-Releaser
-        uses: helm/chart-releaser-action@v1.7.0
+        uses: helm/chart-releaser-action@ffaa7be82753e7c58be4ff39854a4f8b79b140de #v1.7.0
         with:
           charts_dir: ${{ inputs.charts_dir }}
         env:
