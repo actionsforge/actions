@@ -1,0 +1,66 @@
+name: astro-pages-deploy
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version for the Astro build
+        type: string
+        required: false
+        default: "22"
+      path:
+        description: Path to the Astro project root
+        type: string
+        required: false
+        default: "."
+      validate-command:
+        description: Optional command after npm ci (e.g. npm run validate)
+        type: string
+        required: false
+        default: ""
+      test-command:
+        description: Optional command after npm ci (e.g. npm run test)
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install dependencies
+        if: inputs.validate-command != '' || inputs.test-command != ''
+        run: npm ci
+
+      - name: Validate
+        if: inputs.validate-command != ''
+        run: ${{ inputs.validate-command }}
+
+      - name: Test
+        if: inputs.test-command != ''
+        run: ${{ inputs.test-command }}
+
+      - name: Install, build, and upload site
+        uses: withastro/action@b7d53628f8b666036b0238aadb0b984a2a489f26 #v6.1.1
+        with:
+          path: ${{ inputs.path }}
+          node-version: ${{ inputs.node-version }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 #v5.0.0
