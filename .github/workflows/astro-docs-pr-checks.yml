@@ -1,0 +1,19 @@
+name: astro-docs-pr-checks
+
+on:
+  workflow_call:
+    inputs:
+      markdown-ignore:
+        description: Space-separated paths for markdown-lint to ignore
+        type: string
+        required: false
+        default: node_modules
+
+jobs:
+  markdown-lint:
+    uses: ./.github/workflows/markdown-lint.yml
+    with:
+      ignore: ${{ inputs.markdown-ignore }}
+
+  commitmsg-conform:
+    uses: ./.github/workflows/commitmsg-conform.yml
