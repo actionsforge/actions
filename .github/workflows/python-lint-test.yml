@@ -1,0 +1,62 @@
+name: python-lint-test
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python version for lint and test
+        type: string
+        required: false
+        default: "3.13"
+      working-directory:
+        description: Directory containing pyproject.toml
+        type: string
+        required: false
+        default: "."
+      install-command:
+        description: Shell command to install dependencies
+        type: string
+        required: false
+        default: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      lint-command:
+        description: Optional lint command (skipped when empty)
+        type: string
+        required: false
+        default: ""
+      test-command:
+        description: Shell command to run the test suite
+        type: string
+        required: false
+        default: "pytest tests/ -v"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+          cache-dependency-path: ${{ inputs.working-directory }}/pyproject.toml
+
+      - name: Install dependencies
+        run: ${{ inputs.install-command }}
+
+      - name: Lint
+        if: inputs.lint-command != ''
+        run: ${{ inputs.lint-command }}
+
+      - name: Run tests
+        run: ${{ inputs.test-command }}
