@@ -1,0 +1,89 @@
+name: docker-image-validate
+
+on:
+  workflow_call:
+    inputs:
+      image-tag:
+        description: Local tag for the built image
+        type: string
+        required: false
+        default: "image:validate"
+      dockerfile:
+        description: Path to the Dockerfile
+        type: string
+        required: false
+        default: "Dockerfile"
+      context:
+        description: Docker build context
+        type: string
+        required: false
+        default: "."
+      platforms:
+        description: Target platforms for the build
+        type: string
+        required: false
+        default: "linux/amd64"
+      scan-enabled:
+        description: Run Trivy vulnerability scan on the built image
+        type: boolean
+        required: false
+        default: true
+      trivy-severity:
+        description: Comma-separated severities to report
+        type: string
+        required: false
+        default: "CRITICAL,HIGH"
+      trivy-exit-code:
+        description: Exit code when vulnerabilities are found at or above trivy-severity
+        type: string
+        required: false
+        default: "1"
+      trivy-ignore-unfixed:
+        description: Ignore unfixed vulnerabilities in Trivy
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 #v4.1.0
+
+      - name: Validate Trivy scan prerequisites
+        if: inputs.scan-enabled
+        run: |
+          if [[ "${{ inputs.platforms }}" == *","* ]]; then
+            echo "Trivy image scan requires a single loaded platform image."
+            echo "Set platforms to a single target (for example linux/amd64), or disable scan-enabled."
+            exit 1
+          fi
+
+      - name: Build image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf #v7.2.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: false
+          load: true
+          tags: ${{ inputs.image-tag }}
+          platforms: ${{ inputs.platforms }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy
+        if: inputs.scan-enabled
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 #v0.36.0
+        with:
+          image-ref: ${{ inputs.image-tag }}
+          format: table
+          severity: ${{ inputs.trivy-severity }}
+          exit-code: ${{ inputs.trivy-exit-code }}
+          ignore-unfixed: ${{ inputs.trivy-ignore-unfixed }}

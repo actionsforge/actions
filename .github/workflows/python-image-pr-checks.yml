@@ -1,0 +1,93 @@
+name: python-image-pr-checks
+
+on:
+  workflow_call:
+    inputs:
+      markdown-ignore:
+        description: Space-separated paths for markdown-lint to ignore
+        type: string
+        required: false
+        default: node_modules
+      python-version:
+        description: Python version for lint and test
+        type: string
+        required: false
+        default: "3.13"
+      working-directory:
+        description: Directory containing pyproject.toml
+        type: string
+        required: false
+        default: "."
+      install-command:
+        description: Shell command to install Python dependencies
+        type: string
+        required: false
+        default: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      lint-command:
+        description: Optional lint command (skipped when empty)
+        type: string
+        required: false
+        default: ""
+      test-command:
+        description: Shell command to run the test suite
+        type: string
+        required: false
+        default: "pytest tests/ -v"
+      image-tag:
+        description: Local tag for the Docker validate build
+        type: string
+        required: false
+        default: "image:validate"
+      dockerfile:
+        description: Path to the Dockerfile
+        type: string
+        required: false
+        default: "Dockerfile"
+      docker-context:
+        description: Docker build context
+        type: string
+        required: false
+        default: "."
+      docker-platforms:
+        description: Target platforms for the Docker validate build
+        type: string
+        required: false
+        default: "linux/amd64"
+      docker-validate-enabled:
+        description: Build and scan the Docker image during PR checks
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  markdown-lint:
+    uses: ./.github/workflows/markdown-lint.yml
+    with:
+      ignore: ${{ inputs.markdown-ignore }}
+
+  commitmsg-conform:
+    uses: ./.github/workflows/commitmsg-conform.yml
+
+  python-lint-test:
+    uses: ./.github/workflows/python-lint-test.yml
+    with:
+      python-version: ${{ inputs.python-version }}
+      working-directory: ${{ inputs.working-directory }}
+      install-command: ${{ inputs.install-command }}
+      lint-command: ${{ inputs.lint-command }}
+      test-command: ${{ inputs.test-command }}
+
+  docker-image-validate:
+    if: inputs.docker-validate-enabled
+    needs: [python-lint-test]
+    uses: ./.github/workflows/docker-image-validate.yml
+    with:
+      image-tag: ${{ inputs.image-tag }}
+      dockerfile: ${{ inputs.dockerfile }}
+      context: ${{ inputs.docker-context }}
+      platforms: ${{ inputs.docker-platforms }}
