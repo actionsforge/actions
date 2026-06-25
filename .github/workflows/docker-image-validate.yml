@@ -43,6 +43,11 @@ on:
         type: boolean
         required: false
         default: false
+      trivy-vuln-type:
+        description: Comma-separated vulnerability types for Trivy (os, library)
+        type: string
+        required: false
+        default: "os,library"
 
 permissions:
   contents: read
@@ -87,3 +92,4 @@ jobs:
           severity: ${{ inputs.trivy-severity }}
           exit-code: ${{ inputs.trivy-exit-code }}
           ignore-unfixed: ${{ inputs.trivy-ignore-unfixed }}
+          vuln-type: ${{ inputs.trivy-vuln-type }}
