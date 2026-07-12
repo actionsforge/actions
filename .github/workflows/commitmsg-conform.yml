@@ -25,6 +25,7 @@ on:
                   required: true
                 conventional:
                   types:
+                    - build
                     - chore
                     - ci
                     - docs
