@@ -1,0 +1,73 @@
+name: go-mod-tidy-build
+
+# Verify go.mod/go.sum are tidy and optionally compile packages.
+# Intended for Go service/CLI CI before image build or release.
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: Go version for setup-go (e.g. 1.25, stable)
+        type: string
+        required: false
+        default: "stable"
+      working-directory:
+        description: Directory containing go.mod
+        type: string
+        required: false
+        default: "."
+      tidy:
+        description: Run go mod tidy and fail if go.mod/go.sum change
+        type: boolean
+        required: false
+        default: true
+      build:
+        description: Run a go build after tidy
+        type: boolean
+        required: false
+        default: true
+      build-command:
+        description: Build command (used when build is true)
+        type: string
+        required: false
+        default: "go build -v ./..."
+      cache:
+        description: Enable setup-go module cache
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: ${{ inputs.cache }}
+          cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+      - name: Check go mod tidy
+        if: inputs.tidy
+        run: |
+          set -euo pipefail
+          go mod tidy
+          if [ -n "$(git status --porcelain -- go.mod go.sum)" ]; then
+            echo "go.mod or go.sum has uncommitted changes after 'go mod tidy'"
+            git diff -- go.mod go.sum
+            exit 1
+          fi
+
+      - name: Build
+        if: inputs.build
+        run: ${{ inputs.build-command }}

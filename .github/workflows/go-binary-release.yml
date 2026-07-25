@@ -1,0 +1,122 @@
+name: go-binary-release
+
+# Cross-compile Go binaries for configured GOOS/GOARCH pairs and publish
+# them as GitHub Release assets (typically on version tags).
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: Go version for setup-go (e.g. 1.25, stable)
+        type: string
+        required: false
+        default: "stable"
+      working-directory:
+        description: Directory containing go.mod
+        type: string
+        required: false
+        default: "."
+      binary-name:
+        description: Base name for release artifacts (name-goos-goarch)
+        type: string
+        required: true
+      package:
+        description: Package or main file passed to go build
+        type: string
+        required: false
+        default: "."
+      ldflags:
+        description: Linker flags passed to go build -ldflags
+        type: string
+        required: false
+        default: "-s -w"
+      platforms:
+        description: Newline-separated GOOS/GOARCH pairs
+        type: string
+        required: false
+        default: |
+          linux/amd64
+          darwin/amd64
+          darwin/arm64
+      dist-dir:
+        description: Output directory for built binaries
+        type: string
+        required: false
+        default: "dist"
+      create-release:
+        description: Create or update a GitHub Release and upload assets
+        type: boolean
+        required: false
+        default: true
+      generate-release-notes:
+        description: Autogenerate GitHub Release notes
+        type: boolean
+        required: false
+        default: true
+      draft:
+        description: Create the release as a draft
+        type: boolean
+        required: false
+        default: false
+      prerelease:
+        description: Mark the release as a prerelease
+        type: boolean
+        required: false
+        default: false
+      cache:
+        description: Enable setup-go module cache
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: ${{ inputs.cache }}
+          cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+      - name: Build release binaries
+        env:
+          BINARY_NAME: ${{ inputs.binary-name }}
+          PACKAGE: ${{ inputs.package }}
+          LDFLAGS: ${{ inputs.ldflags }}
+          PLATFORMS: ${{ inputs.platforms }}
+          DIST_DIR: ${{ inputs.dist-dir }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${DIST_DIR}"
+          while IFS= read -r platform; do
+            platform="$(echo "${platform}" | tr -d '[:space:]')"
+            [[ -z "${platform}" ]] && continue
+            goos="${platform%%/*}"
+            goarch="${platform##*/}"
+            out="${DIST_DIR}/${BINARY_NAME}-${goos}-${goarch}"
+            echo "Building ${out}"
+            GOOS="${goos}" GOARCH="${goarch}" go build -ldflags="${LDFLAGS}" -o "${out}" ${PACKAGE}
+          done <<< "${PLATFORMS}"
+          ls -la "${DIST_DIR}"
+
+      - name: Create Release
+        if: inputs.create-release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          files: ${{ inputs.working-directory }}/${{ inputs.dist-dir }}/*
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: ${{ inputs.generate-release-notes }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
