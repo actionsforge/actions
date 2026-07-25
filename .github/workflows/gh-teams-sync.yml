@@ -1,0 +1,37 @@
+name: gh-teams-sync
+
+# Sync GitHub org teams from a declarative YAML file via
+# actionsforge/actions-gh-teams-sync. Call with secrets: inherit
+# (requires GH_ORG_TOKEN on the caller).
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        description: Path to the teams YAML config
+        type: string
+        required: false
+        default: "teams.yaml"
+      dry-run:
+        description: Run without making changes
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: GitHub Teams Sync
+        uses: actionsforge/actions-gh-teams-sync@v1
+        with:
+          config-path: ${{ inputs.config-path }}
+          dry-run: ${{ inputs.dry-run }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
