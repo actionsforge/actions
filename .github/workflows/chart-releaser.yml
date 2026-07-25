@@ -130,7 +130,8 @@ jobs:
         run: |
           set -euo pipefail
           BRANCH="gh-pages"
-          
+          SOURCE_SHA="$(git rev-parse HEAD)"
+
           # Check if branch exists remotely
           if git ls-remote --heads origin "${BRANCH}" | grep -q "${BRANCH}"; then
             echo "Branch ${BRANCH} already exists, skipping initialization"
@@ -144,7 +145,9 @@ jobs:
             git commit --allow-empty -m "Initialize ${BRANCH} branch"
             # Push the branch
             git push origin "${BRANCH}"
-            echo "✅ Created and pushed ${BRANCH} branch"
+            # Return to the source commit so later steps see charts/ source tree
+            git checkout --force "${SOURCE_SHA}"
+            echo "Created and pushed ${BRANCH} branch; restored ${SOURCE_SHA}"
           fi
 
       - name: Create initial tag if none exists

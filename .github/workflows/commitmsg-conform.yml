@@ -58,9 +58,23 @@ jobs:
           cat << EOF > .conform.yaml
           ${{ inputs.config }}
           EOF
+      - name: Resolve commit-ref
+        id: commit-ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Prefer PR base branch; fall back to repository default branch.
+          if [[ -n "${{ github.base_ref }}" ]]; then
+            BASE="${{ github.base_ref }}"
+          else
+            BASE="${{ github.event.repository.default_branch }}"
+          fi
+          echo "ref=refs/remotes/origin/${BASE}" >> "$GITHUB_OUTPUT"
+          echo "Using commit-ref refs/remotes/origin/${BASE}"
       - name: conform
         env:
           INPUT_TOKEN: ${{ github.token }}
+          COMMIT_REF: ${{ steps.commit-ref.outputs.ref }}
         run: |
           docker run \
             -e "ACTIONS_CACHE_URL" \
@@ -121,4 +135,4 @@ jobs:
             -v "/home/runner/work/_temp/_runner_file_commands":"/github/file_commands" \
             --workdir /github/workspace \
             ghcr.io/siderolabs/conform:v0.1.0-alpha.30-1-ga6572d2 \
-            enforce --commit-ref="refs/remotes/origin/main" --reporter=github
+            enforce --commit-ref="$COMMIT_REF" --reporter=github
