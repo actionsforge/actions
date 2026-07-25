@@ -1,0 +1,4 @@
+{
+  "name": "actionsforge-actions-validate-devschema-fixture",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu"
+}
