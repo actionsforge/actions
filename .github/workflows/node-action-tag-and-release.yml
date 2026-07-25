@@ -1,0 +1,140 @@
+name: node-action-tag-and-release
+
+# Semver tag + GitHub Release for Node/JS GitHub Actions.
+# Bumps patch (with minor/major rollover at .99), force-updates floating vMAJOR,
+# and optionally builds + commits dist/ before tagging.
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        required: false
+        default: '20'
+        description: Node.js version
+      build:
+        type: boolean
+        required: false
+        default: true
+        description: Run npm run build after install
+      commit-dist:
+        type: boolean
+        required: false
+        default: false
+        description: Commit and push dist/ changes before tagging
+      create-release:
+        type: boolean
+        required: false
+        default: true
+        description: Create a GitHub Release for the new tag
+      update-major-tag:
+        type: boolean
+        required: false
+        default: true
+        description: Force-update floating vMAJOR tag to the new release
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        if: ${{ inputs.build }}
+        run: npm run build
+
+      - name: Configure Git
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit dist
+        if: ${{ inputs.commit-dist }}
+        run: |
+          set -euo pipefail
+          git add dist/
+          if git diff --cached --quiet; then
+            echo "No dist/ changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: auto-compile action" \
+            -m "Commit built dist/ artifacts produced by npm run build before tagging."
+          git push
+
+      - name: Tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPDATE_MAJOR_TAG: ${{ inputs.update-major-tag }}
+        run: |
+          set -euo pipefail
+          git fetch --tags
+
+          latest_tag=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+
+          if [[ "$latest_tag" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+            patch="${BASH_REMATCH[3]}"
+
+            if (( patch < 99 )); then
+              patch=$((patch + 1))
+            else
+              patch=0
+              if (( minor < 99 )); then
+                minor=$((minor + 1))
+              else
+                minor=0
+                major=$((major + 1))
+              fi
+            fi
+          else
+            major=1
+            minor=0
+            patch=0
+          fi
+
+          new_tag="v${major}.${minor}.${patch}"
+          echo "New tag: $new_tag"
+          echo "tag=${new_tag}" >> "$GITHUB_OUTPUT"
+          echo "major=${major}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$latest_tag" ]; then
+            git log "$latest_tag"..HEAD --pretty=format:"- %s" > changelog.txt
+          else
+            git log --pretty=format:"- %s" > changelog.txt
+          fi
+
+          git tag "$new_tag"
+          git push origin "$new_tag"
+
+          if [ "$UPDATE_MAJOR_TAG" = "true" ]; then
+            git tag -f "v${major}" "$new_tag"
+            git push -f origin "v${major}"
+          fi
+
+      - name: Create GitHub Release
+        if: ${{ inputs.create-release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            --title "${{ steps.tag.outputs.tag }}" \
+            --notes-file changelog.txt
