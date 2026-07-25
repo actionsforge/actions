@@ -1,13 +1,8 @@
-name: python-image-pr-checks
+name: python-image-validate
 
 on:
   workflow_call:
     inputs:
-      markdown-ignore:
-        description: Space-separated paths for markdown-lint to ignore
-        type: string
-        required: false
-        default: node_modules
       python-version:
         description: Python version for lint and test
         type: string
@@ -70,14 +65,6 @@ permissions:
   contents: read
 
 jobs:
-  markdown-lint:
-    uses: ./.github/workflows/markdown-lint.yml
-    with:
-      ignore: ${{ inputs.markdown-ignore }}
-
-  commitmsg-conform:
-    uses: ./.github/workflows/commitmsg-conform.yml
-
   python-lint-test:
     uses: ./.github/workflows/python-lint-test.yml
     with:
