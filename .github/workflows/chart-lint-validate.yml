@@ -4,10 +4,10 @@ on:
   workflow_call:
     inputs:
       chart_dirs:
-        description: "Chart directory (relative path, defaults to repository root)"
+        description: "Chart directory relative to repository root (passed to ct --chart-dirs)"
         type: string
         required: false
-        default: "."
+        default: "charts"
       target_branch:
         description: "Target branch for chart-testing (defaults to repository default branch)"
         type: string
@@ -80,27 +80,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          changed=$(ct list-changed --target-branch ${{ steps.target.outputs.branch }})
+          changed=$(ct list-changed \
+            --target-branch "${{ steps.target.outputs.branch }}" \
+            --chart-dirs "${{ inputs.chart_dirs }}")
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run Chart-Testing (lint)
-        if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_lint != false) }}
+        if: ${{ steps.list-changed.outputs.changed == 'true' && inputs.run_lint }}
         shell: bash
-        working-directory: ${{ inputs.chart_dirs }}
         run: |
           set -euo pipefail
-          ct lint --target-branch ${{ steps.target.outputs.branch }}
+          ct lint \
+            --target-branch "${{ steps.target.outputs.branch }}" \
+            --chart-dirs "${{ inputs.chart_dirs }}"
 
       - name: Create Kind cluster
-        if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_install != false) }}
+        if: ${{ steps.list-changed.outputs.changed == 'true' && inputs.run_install }}
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc #v1.14.0
 
       - name: Run Chart-Testing (install)
-        if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_install != false) }}
+        if: ${{ steps.list-changed.outputs.changed == 'true' && inputs.run_install }}
         shell: bash
-        working-directory: ${{ inputs.chart_dirs }}
         run: |
           set -euo pipefail
-          ct install --target-branch ${{ steps.target.outputs.branch }}
+          ct install \
+            --target-branch "${{ steps.target.outputs.branch }}" \
+            --chart-dirs "${{ inputs.chart_dirs }}"
