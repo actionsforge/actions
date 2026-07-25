@@ -1,0 +1,61 @@
+name: dependabot-auto-merge
+
+# Approve/enable auto-merge for Dependabot PRs via fastify/github-action-merge-dependabot.
+# Callers should trigger on pull_request (+ optional check_suite) and pass secrets: inherit.
+#
+# Note: `target` is a SemVer ceiling (major|minor|patch|any), not a branch name.
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: SemVer auto-merge ceiling (major, minor, patch, any, …)
+        type: string
+        required: false
+        default: "any"
+      merge-method:
+        description: Merge method (squash, merge, rebase)
+        type: string
+        required: false
+        default: "squash"
+      use-github-auto-merge:
+        description: Enable GitHub auto-merge instead of merging immediately
+        type: boolean
+        required: false
+        default: true
+      skip-verification:
+        description: Skip Dependabot user/commit verification
+        type: boolean
+        required: false
+        default: false
+      approve-only:
+        description: Only approve the PR without merging
+        type: boolean
+        required: false
+        default: false
+      exclude:
+        description: Comma-separated packages to exclude from auto-merge
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Enable auto-merge for Dependabot PRs
+        uses: fastify/github-action-merge-dependabot@73ec4cbb5e56df5591eae286972d5b2201ffe90f # v3.15.0
+        with:
+          github-token: ${{ github.token }}
+          target: ${{ inputs.target }}
+          merge-method: ${{ inputs.merge-method }}
+          use-github-auto-merge: ${{ inputs.use-github-auto-merge }}
+          skip-verification: ${{ inputs.skip-verification }}
+          approve-only: ${{ inputs.approve-only }}
+          exclude: ${{ inputs.exclude }}
