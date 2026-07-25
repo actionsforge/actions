@@ -18,7 +18,8 @@ on:
             "no-bare-urls": false,
             "fenced-code-language": false,
             "first-line-h1": false,
-            "no-duplicate-header": false,
+            "no-duplicate-heading": false,
+            "blanks-around-headings": false,
             "no-emphasis-as-header": false,
             "single-h1": false
           }
