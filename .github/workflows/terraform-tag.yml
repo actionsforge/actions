@@ -2,6 +2,12 @@ name: terraform-tag
 
 on:
   workflow_call:
+    inputs:
+      create-release:
+        description: Create a GitHub Release for the new tag
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -14,22 +20,38 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+        with:
+          fetch-depth: 0
 
       - name: Configure Git
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Commit changes (if any)
         run: |
-          git add .
-          git commit -m "chore: update auto-generated files" || echo "No changes to commit"
+          set -euo pipefail
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          # Stage updates to tracked files only (avoid committing unrelated untracked files)
+          git add -u
+          if git diff --cached --quiet; then
+            echo "No tracked-file changes to commit"
+            exit 0
+          fi
+          git commit -m "chore: update auto-generated files" \
+            -m "Commit documentation and other generated files produced by the preceding workflow before tagging a new module version."
           git push
 
       - name: Tag
+        id: tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           git fetch --tags
 
           latest_tag=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
@@ -58,6 +80,7 @@ jobs:
 
           new_tag="v${major}.${minor}.${patch}"
           echo "New tag: $new_tag"
+          echo "tag=${new_tag}" >> "$GITHUB_OUTPUT"
 
           if [ -n "$latest_tag" ]; then
             git log "$latest_tag"..HEAD --pretty=format:"- %s" > changelog.txt
@@ -67,3 +90,13 @@ jobs:
 
           git tag "$new_tag"
           git push origin "$new_tag"
+
+      - name: Create GitHub Release
+        if: ${{ inputs.create-release }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            --title "${{ steps.tag.outputs.tag }}" \
+            --notes-file changelog.txt
