@@ -1,0 +1,42 @@
+name: validate-devschema
+
+on:
+  workflow_call:
+    inputs:
+      schema:
+        description: Path or URL to the JSON schema.
+        required: false
+        type: string
+        default: "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json"
+      data:
+        description: Path or URL to the JSON data.
+        required: false
+        type: string
+        default: ".devcontainer/devcontainer.json"
+      verbose:
+        description: Enable verbose output.
+        required: false
+        type: boolean
+        default: false
+      python-version:
+        description: |
+          Python version to use. Must be one of:
+          3.9, 3.10, 3.11, 3.12, 3.13
+        required: false
+        type: string
+        default: "3.13"
+
+jobs:
+  validate-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+
+      - name: Validate Devcontainer Schema
+        uses: actionsforge/actions-validate-devschema@v1
+        with:
+          schema: ${{ inputs.schema }}
+          data: ${{ inputs.data }}
+          verbose: ${{ inputs.verbose }}
+          python-version: ${{ inputs.python-version }}

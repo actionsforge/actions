@@ -1,0 +1,22 @@
+name: validate-devschema
+on:
+  pull_request:
+    paths:
+      - .github/workflows/validate-devschema.yml
+      - .github/workflows/_validate-devschema.yml
+      - .github/fixtures/devcontainer.json
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/validate-devschema.yml
+      - .github/workflows/_validate-devschema.yml
+      - .github/fixtures/devcontainer.json
+  workflow_dispatch: {}
+
+jobs:
+  validate-devschema:
+    uses: ./.github/workflows/validate-devschema.yml
+    with:
+      data: .github/fixtures/devcontainer.json
+      verbose: true
