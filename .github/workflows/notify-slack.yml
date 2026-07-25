@@ -1,0 +1,177 @@
+name: notify-slack
+
+# Post a Slack message via Incoming Webhook.
+# Webhook URL is resolved from either:
+#   webhook-source: github   → secrets.SLACK_WEBHOOK_URL
+#   webhook-source: bitwarden → Bitwarden SM (BW_ACCESS_TOKEN + BW_SLACK_WEBHOOK_SECRET_ID)
+#
+# Call with secrets: inherit.
+
+on:
+  workflow_call:
+    inputs:
+      title:
+        description: Slack message header
+        type: string
+        required: true
+      text:
+        description: Primary message body (mrkdwn-friendly plain text)
+        type: string
+        required: true
+      webhook-source:
+        description: Where to load the webhook URL from (github or bitwarden)
+        type: string
+        required: false
+        default: "github"
+      include-run-link:
+        description: Include a button linking to the triggering workflow run
+        type: boolean
+        required: false
+        default: true
+      fail-on-error:
+        description: Fail the job if Slack delivery fails
+        type: boolean
+        required: false
+        default: false
+      bitwarden-base-url:
+        description: Bitwarden Secrets Manager API base URL
+        type: string
+        required: false
+        default: "https://vault.bitwarden.com"
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate webhook-source
+        run: |
+          set -euo pipefail
+          src="${{ inputs.webhook-source }}"
+          if [ "$src" != "github" ] && [ "$src" != "bitwarden" ]; then
+            echo "webhook-source must be 'github' or 'bitwarden' (got: $src)"
+            exit 1
+          fi
+
+      - name: Resolve webhook from GitHub secret
+        if: inputs.webhook-source == 'github'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "SLACK_WEBHOOK_URL secret is empty"
+            exit 1
+          fi
+          echo "::add-mask::$SLACK_WEBHOOK_URL"
+          echo "SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL" >> "$GITHUB_ENV"
+
+      - name: Resolve webhook from Bitwarden
+        if: inputs.webhook-source == 'bitwarden'
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BW_ACCESS_TOKEN }}
+          base_url: ${{ inputs.bitwarden-base-url }}
+          secrets: |
+            ${{ secrets.BW_SLACK_WEBHOOK_SECRET_ID }} > SLACK_WEBHOOK_URL
+
+      - name: Send Slack notification
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TITLE: ${{ inputs.title }}
+          TEXT: ${{ inputs.text }}
+          INCLUDE_RUN_LINK: ${{ inputs.include-run-link }}
+          FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        with:
+          script: |
+            const https = require('https');
+            const { URL } = require('url');
+
+            const title = process.env.TITLE || 'Notification';
+            const text = process.env.TEXT || '';
+            const includeRunLink = process.env.INCLUDE_RUN_LINK === 'true';
+            const failOnError = process.env.FAIL_ON_ERROR === 'true';
+            const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+
+            if (!webhookUrl) {
+              const msg = 'SLACK_WEBHOOK_URL not set after webhook resolve';
+              if (failOnError) throw new Error(msg);
+              console.log(msg + ' - skipping');
+              return;
+            }
+
+            const currentTime = new Date().toISOString();
+            const workflowUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const blocks = [
+              {
+                type: 'header',
+                text: { type: 'plain_text', text: title.slice(0, 150), emoji: true },
+              },
+              {
+                type: 'section',
+                fields: [
+                  { type: 'mrkdwn', text: `*Time:*\n\`${currentTime}\`` },
+                  {
+                    type: 'mrkdwn',
+                    text: `*Repository:*\n\`${context.repo.owner}/${context.repo.repo}\``,
+                  },
+                ],
+              },
+              {
+                type: 'section',
+                text: { type: 'mrkdwn', text: text || '_No details provided._' },
+              },
+            ];
+
+            if (includeRunLink) {
+              blocks.push({
+                type: 'actions',
+                elements: [
+                  {
+                    type: 'button',
+                    text: { type: 'plain_text', text: 'View Workflow Run', emoji: true },
+                    url: workflowUrl,
+                  },
+                ],
+              });
+            }
+
+            const payload = JSON.stringify({ blocks });
+            const parsedUrl = new URL(webhookUrl);
+
+            try {
+              await new Promise((resolve, reject) => {
+                const req = https.request(
+                  {
+                    hostname: parsedUrl.hostname,
+                    path: parsedUrl.pathname + parsedUrl.search,
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Content-Length': Buffer.byteLength(payload),
+                    },
+                  },
+                  (res) => {
+                    res.resume();
+                    res.on('end', () => {
+                      if (res.statusCode >= 200 && res.statusCode < 300) resolve();
+                      else reject(new Error(`Slack webhook failed: ${res.statusCode}`));
+                    });
+                  },
+                );
+                req.on('error', () => reject(new Error('Slack webhook request failed')));
+                req.setTimeout(10000, () => {
+                  req.destroy();
+                  reject(new Error('Slack webhook request timed out'));
+                });
+                req.write(payload);
+                req.end();
+              });
+              console.log('Slack notification sent successfully');
+            } catch (error) {
+              if (failOnError) throw error;
+              console.log(`Failed to send Slack notification: ${error.message}`);
+            }
