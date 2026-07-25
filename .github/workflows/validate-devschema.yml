@@ -33,10 +33,27 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
 
+      - name: Resolve paths against workspace
+        id: paths
+        env:
+          SCHEMA: ${{ inputs.schema }}
+          DATA: ${{ inputs.data }}
+        run: |
+          resolve() {
+            local value="$1"
+            if [[ "$value" == http://* || "$value" == https://* || "$value" == /* ]]; then
+              printf '%s' "$value"
+            else
+              printf '%s/%s' "$GITHUB_WORKSPACE" "$value"
+            fi
+          }
+          echo "schema=$(resolve "$SCHEMA")" >> "$GITHUB_OUTPUT"
+          echo "data=$(resolve "$DATA")" >> "$GITHUB_OUTPUT"
+
       - name: Validate Devcontainer Schema
         uses: actionsforge/actions-validate-devschema@v1
         with:
-          schema: ${{ inputs.schema }}
-          data: ${{ inputs.data }}
+          schema: ${{ steps.paths.outputs.schema }}
+          data: ${{ steps.paths.outputs.data }}
           verbose: ${{ inputs.verbose }}
           python-version: ${{ inputs.python-version }}
