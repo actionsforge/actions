@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           REPOS_FILE=$(mktemp)
-          
+
           # Extract repository URLs from Chart.yaml files
           find "${CHARTS_DIR}" -name "Chart.yaml" -type f | while IFS= read -r chart_file; do
             if grep -q "dependencies:" "$chart_file"; then
@@ -54,15 +54,15 @@ jobs:
                 grep -E '^https?://' >> "${REPOS_FILE}" || true
             fi
           done
-          
-          # Add unique repositories
+
+          # Add unique repositories (fail if helm repo add fails)
           if [ -s "${REPOS_FILE}" ]; then
             REPOS_ADDED=false
             while IFS= read -r repo_url; do
               repo_name=$(echo "$repo_url" | sed 's|https\?://||' | sed 's|/.*||' | sed 's|[^a-zA-Z0-9]|-|g' | tr '[:upper:]' '[:lower:]')
               if ! helm repo list 2>/dev/null | grep -q "^${repo_name}[[:space:]]"; then
                 echo "Adding Helm repository: ${repo_name} -> ${repo_url}"
-                helm repo add "${repo_name}" "${repo_url}" || true
+                helm repo add "${repo_name}" "${repo_url}"
                 REPOS_ADDED=true
               fi
             done < <(sort -u "${REPOS_FILE}")
@@ -71,7 +71,7 @@ jobs:
             echo "No dependencies found in ${CHARTS_DIR}, skipping repository addition"
             echo "repos_added=false" >> "$GITHUB_OUTPUT"
           fi
-          
+
           rm -f "${REPOS_FILE}"
 
       - name: Update Helm Repositories
@@ -87,38 +87,37 @@ jobs:
           for dir in "${CHARTS_DIR}"/*/; do
             [ ! -d "$dir" ] && continue
             echo "Processing chart: ${dir}"
-            
-            # Check if chart has dependencies
+
             if ! grep -q "dependencies:" "${dir}/Chart.yaml" 2>/dev/null; then
               echo "Chart has no dependencies, skipping"
               continue
             fi
-            
-            # Build or update dependencies
+
             if [ -f "${dir}/Chart.lock" ]; then
               echo "Chart.lock found, using helm dependency build"
-              if ! helm dependency build "$dir" 2>/dev/null; then
-                echo "Build failed, trying update instead"
-                helm dependency update "$dir" 2>/dev/null || echo "No dependencies to update"
+              if ! helm dependency build "$dir"; then
+                echo "Build failed, trying helm dependency update"
+                helm dependency update "$dir"
               fi
             else
               echo "Chart.lock not found, using helm dependency update"
-              helm dependency update "$dir" 2>/dev/null || echo "No dependencies to update"
+              helm dependency update "$dir"
             fi
-            
+
             # Unpack .tgz files to directories (chart-releaser expects unpacked dependencies)
             if [ -d "${dir}/charts" ] && [ -n "$(ls -A ${dir}/charts/*.tgz 2>/dev/null)" ]; then
               echo "Unpacking dependencies in ${dir}/charts"
-              cd "${dir}/charts"
-              for tgz in *.tgz; do
-                [ ! -f "$tgz" ] && continue
-                dirname="${tgz%.tgz}"
-                echo "  Unpacking ${tgz} -> ${dirname}/"
-                mkdir -p "${dirname}"
-                tar -xzf "${tgz}" -C "${dirname}" --strip-components=1
-                rm -f "${tgz}"
-              done
-              cd - > /dev/null
+              (
+                cd "${dir}/charts"
+                for tgz in *.tgz; do
+                  [ ! -f "$tgz" ] && continue
+                  dirname="${tgz%.tgz}"
+                  echo "  Unpacking ${tgz} -> ${dirname}/"
+                  mkdir -p "${dirname}"
+                  tar -xzf "${tgz}" -C "${dirname}" --strip-components=1
+                  rm -f "${tgz}"
+                done
+              )
               echo "Dependencies unpacked successfully"
             else
               echo "No dependencies to unpack"
@@ -132,53 +131,29 @@ jobs:
           BRANCH="gh-pages"
           SOURCE_SHA="$(git rev-parse HEAD)"
 
-          # Check if branch exists remotely
           if git ls-remote --heads origin "${BRANCH}" | grep -q "${BRANCH}"; then
             echo "Branch ${BRANCH} already exists, skipping initialization"
           else
             echo "Branch ${BRANCH} does not exist, creating it"
-            # Create orphan branch (no parent commits)
             git checkout --orphan "${BRANCH}"
-            # Remove all files from staging
             git rm -rf . || true
-            # Create initial commit
             git commit --allow-empty -m "Initialize ${BRANCH} branch"
-            # Push the branch
             git push origin "${BRANCH}"
-            # Return to the source commit so later steps see charts/ source tree
             git checkout --force "${SOURCE_SHA}"
             echo "Created and pushed ${BRANCH} branch; restored ${SOURCE_SHA}"
           fi
 
       - name: Create initial tag if none exists
         shell: bash
-        env:
-          CHARTS_DIR: ${{ inputs.charts_dir }}
         run: |
           set -euo pipefail
-          # Check if any tags exist
+          # Use sentinel v0.0.0 only — never Chart.yaml version, or chart-releaser
+          # may treat the current chart version as already released.
           if ! git tag | grep -q .; then
-            echo "No tags found, creating initial tag from Chart.yaml version"
-            # Find first Chart.yaml and extract version
-            CHART_FILE=$(find "${CHARTS_DIR}" -name "Chart.yaml" -type f | head -n 1)
-            if [ -n "$CHART_FILE" ]; then
-              VERSION=$(grep "^version:" "$CHART_FILE" | sed -E 's/^version:[[:space:]]*["'\'']?([^"'\'']+)["'\'']?[[:space:]]*$/\1/')
-              if [ -n "$VERSION" ]; then
-                TAG="v${VERSION}"
-                echo "Creating tag ${TAG} from Chart.yaml version ${VERSION}"
-                git tag -a "${TAG}" -m "Initial tag for chart-releaser (from Chart.yaml)"
-                git push origin "${TAG}"
-                echo "Created initial tag ${TAG}"
-              else
-                echo "Could not extract version from Chart.yaml, using v0.0.0"
-                git tag -a "v0.0.0" -m "Initial tag for chart-releaser"
-                git push origin "v0.0.0"
-              fi
-            else
-              echo "No Chart.yaml found in ${CHARTS_DIR}, using v0.0.0"
-              git tag -a "v0.0.0" -m "Initial tag for chart-releaser"
-              git push origin "v0.0.0"
-            fi
+            echo "No tags found, creating sentinel tag v0.0.0"
+            git tag -a "v0.0.0" -m "Initial sentinel tag for chart-releaser"
+            git push origin "v0.0.0"
+            echo "Created initial tag v0.0.0"
           else
             echo "Tags already exist, skipping initial tag creation"
           fi
