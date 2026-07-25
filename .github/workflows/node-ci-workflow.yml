@@ -23,6 +23,16 @@ on:
         required: false
         default: false
         description: Run npm audit --audit-level=high after build.
+      test-token:
+        type: string
+        required: false
+        default: ''
+        description: Optional token exported as GH_SPOTLIGHT_TOKEN and GITHUB_TOKEN for tests.
+      test-github-user:
+        type: string
+        required: false
+        default: ''
+        description: Optional GITHUB_USER exported for tests.
 
 jobs:
   build:
@@ -30,10 +40,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 #v7.0.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ inputs.node-version }}
           cache: npm
@@ -46,6 +56,10 @@ jobs:
         run: npm run typecheck
 
       - name: Run tests
+        env:
+          GH_SPOTLIGHT_TOKEN: ${{ inputs.test-token }}
+          GITHUB_TOKEN: ${{ inputs.test-token }}
+          GITHUB_USER: ${{ inputs.test-github-user }}
         run: npm test${{ inputs.coverage && ' -- --coverage' || '' }}
 
       - name: Build project
