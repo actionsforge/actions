@@ -50,8 +50,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve target branch
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ inputs.target_branch }}" ]]; then
+            echo "branch=${{ inputs.target_branch }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch=${{ github.event.repository.default_branch }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Helm
-        uses: azure/setup-helm@v5
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 #v5.0.1
         with:
           version: ${{ inputs.helm_version || 'latest' }}
 
@@ -69,7 +80,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
+          changed=$(ct list-changed --target-branch ${{ steps.target.outputs.branch }})
           if [[ -n "$changed" ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
@@ -80,7 +91,7 @@ jobs:
         working-directory: ${{ inputs.chart_dirs }}
         run: |
           set -euo pipefail
-          ct lint --target-branch ${{ github.event.repository.default_branch }}
+          ct lint --target-branch ${{ steps.target.outputs.branch }}
 
       - name: Create Kind cluster
         if: ${{ steps.list-changed.outputs.changed == 'true' && (github.event_name == 'pull_request' || inputs.run_install != false) }}
@@ -92,4 +103,4 @@ jobs:
         working-directory: ${{ inputs.chart_dirs }}
         run: |
           set -euo pipefail
-          ct install --target-branch ${{ github.event.repository.default_branch }}
+          ct install --target-branch ${{ steps.target.outputs.branch }}
