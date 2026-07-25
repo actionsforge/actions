@@ -142,14 +142,20 @@ jobs:
             type=semver,pattern={{version}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build image
+      # Scan path: single build + load, Trivy, then docker push (no rebuild).
+      # Non-scan / multi-platform path: build-push once with push:true.
+      - name: Build image for scan
+        if: inputs.scan-enabled
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a #v7.3.0
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.dockerfile }}
           push: false
           load: true
-          tags: image:publish
+          tags: |
+            image:publish
+            ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           platforms: ${{ inputs.platforms }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -164,7 +170,19 @@ jobs:
           exit-code: "1"
           ignore-unfixed: ${{ inputs.trivy-ignore-unfixed }}
 
-      - name: Push image
+      - name: Push scanned image
+        if: inputs.scan-enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            [[ -z "$tag" ]] && continue
+            echo "Pushing ${tag}"
+            docker push "$tag"
+          done <<< "${{ steps.meta.outputs.tags }}"
+
+      - name: Build and push image
+        if: ${{ !inputs.scan-enabled }}
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a #v7.3.0
         with:
           context: ${{ inputs.context }}
