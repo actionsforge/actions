@@ -1,45 +1,79 @@
-name: Node CI Workflow
+name: node-ci-workflow
+
+# Generic Node.js CI: install → optional typecheck → test → optional build → optional audit.
+# Repo-specific test env (tokens, users, etc.) belongs in the project's test setup
+# (e.g. vitest setupFiles / jest setupFiles), not in this reusable.
 
 on:
   workflow_call:
     inputs:
       node-version:
+        description: Node.js version
         type: string
         required: false
         default: '20'
-        description: The Node.js version to use for the CI workflow.
+      working-directory:
+        description: Directory containing package.json / lockfile
+        type: string
+        required: false
+        default: '.'
+      install-command:
+        description: Shell command to install dependencies
+        type: string
+        required: false
+        default: 'npm ci --no-audit --no-fund'
       typecheck:
+        description: Run npm run typecheck before tests
         type: boolean
         required: false
         default: false
-        description: Run npm run typecheck before tests.
+      typecheck-command:
+        description: Typecheck command (used when typecheck is true)
+        type: string
+        required: false
+        default: 'npm run typecheck'
+      test-command:
+        description: Test command (coverage flag appended when coverage is true)
+        type: string
+        required: false
+        default: 'npm test'
       coverage:
+        description: Append --coverage to test-command
         type: boolean
         required: false
         default: false
-        description: Pass --coverage flag to npm test.
+      build:
+        description: Run build after tests
+        type: boolean
+        required: false
+        default: true
+      build-command:
+        description: Build command (used when build is true)
+        type: string
+        required: false
+        default: 'npm run build'
       audit:
+        description: Run npm audit --audit-level=high after build
         type: boolean
         required: false
         default: false
-        description: Run npm audit --audit-level=high after build.
-      test-token:
+      audit-command:
+        description: Audit command (used when audit is true)
         type: string
         required: false
-        default: ''
-        description: Optional token exported as GH_SPOTLIGHT_TOKEN and GITHUB_TOKEN for tests.
-      test-github-user:
-        type: string
-        required: false
-        default: ''
-        description: Optional GITHUB_USER exported for tests.
+        default: 'npm audit --audit-level=high'
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  ci:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
@@ -47,24 +81,22 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: ${{ inputs.install-command }}
 
       - name: Typecheck
         if: ${{ inputs.typecheck }}
-        run: npm run typecheck
+        run: ${{ inputs.typecheck-command }}
 
-      - name: Run tests
-        env:
-          GH_SPOTLIGHT_TOKEN: ${{ inputs.test-token }}
-          GITHUB_TOKEN: ${{ inputs.test-token }}
-          GITHUB_USER: ${{ inputs.test-github-user }}
-        run: npm test${{ inputs.coverage && ' -- --coverage' || '' }}
+      - name: Test
+        run: ${{ inputs.test-command }}${{ inputs.coverage && ' -- --coverage' || '' }}
 
-      - name: Build project
-        run: npm run build
+      - name: Build
+        if: ${{ inputs.build }}
+        run: ${{ inputs.build-command }}
 
-      - name: Security audit
+      - name: Audit
         if: ${{ inputs.audit }}
-        run: npm audit --audit-level=high
+        run: ${{ inputs.audit-command }}
