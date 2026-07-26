@@ -1,8 +1,8 @@
 name: gh-teams-sync
 
 # Sync GitHub org teams from a declarative YAML file via
-# actionsforge/actions-gh-teams-sync. Call with secrets: inherit
-# (requires GH_ORG_TOKEN on the caller).
+# actionsforge/actions-gh-teams-sync. Callers must pass GH_ORG_TOKEN
+# explicitly (secrets: inherit is unreliable across organizations).
 
 on:
   workflow_call:
@@ -17,6 +17,10 @@ on:
         type: boolean
         required: false
         default: false
+    secrets:
+      GH_ORG_TOKEN:
+        description: PAT with admin:org (and repo) for team membership sync
+        required: true
 
 permissions:
   contents: read
@@ -27,6 +31,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Require GH_ORG_TOKEN
+        env:
+          GH_ORG_TOKEN: ${{ secrets.GH_ORG_TOKEN }}
+        run: |
+          if [ -z "${GH_ORG_TOKEN}" ]; then
+            echo "::error::GH_ORG_TOKEN secret is empty. Set a PAT with admin:org on the calling repo."
+            exit 1
+          fi
 
       - name: GitHub Teams Sync
         uses: actionsforge/actions-gh-teams-sync@v1
