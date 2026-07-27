@@ -57,7 +57,7 @@ on:
         description: Whether terraform plan exited non-zero
         value: ${{ jobs.drift.outputs.has_errors }}
       plan_summary:
-        description: Short plan summary line (e.g. Plan: 0 to add, …)
+        description: "Short plan summary line (e.g. Plan: 0 to add, …)"
         value: ${{ jobs.drift.outputs.plan_summary }}
       environment_label:
         description: Echo of environment-label input
