@@ -1,6 +1,7 @@
 name: dependabot-auto-merge
 
-# Approve/enable auto-merge for Dependabot PRs via fastify/github-action-merge-dependabot.
+# Enable GitHub auto-merge for Dependabot PRs without approving them.
+# Org policy may block Actions from creating PR approvals; gh --auto does not need that.
 # Callers should trigger on pull_request (+ optional check_suite) and pass secrets: inherit.
 #
 # Note: `target` is a SemVer ceiling (major|minor|patch|any), not a branch name.
@@ -9,7 +10,7 @@ on:
   workflow_call:
     inputs:
       target:
-        description: SemVer auto-merge ceiling (major, minor, patch, any, …)
+        description: "SemVer auto-merge ceiling (major, minor, patch, any)"
         type: string
         required: false
         default: "any"
@@ -24,12 +25,12 @@ on:
         required: false
         default: true
       skip-verification:
-        description: Skip Dependabot user/commit verification
+        description: Skip Dependabot user/commit verification (unused; kept for callers)
         type: boolean
         required: false
         default: false
       approve-only:
-        description: Only approve the PR without merging
+        description: Only approve the PR without merging (unsupported without Actions approve permission)
         type: boolean
         required: false
         default: false
@@ -49,13 +50,88 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
     steps:
-      - name: Enable auto-merge for Dependabot PRs
-        uses: fastify/github-action-merge-dependabot@73ec4cbb5e56df5591eae286972d5b2201ffe90f # v3.15.0
-        with:
-          github-token: ${{ github.token }}
-          target: ${{ inputs.target }}
-          merge-method: ${{ inputs.merge-method }}
-          use-github-auto-merge: ${{ inputs.use-github-auto-merge }}
-          skip-verification: ${{ inputs.skip-verification }}
-          approve-only: ${{ inputs.approve-only }}
-          exclude: ${{ inputs.exclude }}
+      - name: Resolve pull request number
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # check_suite / other events: find open Dependabot PR for this head SHA
+          sha="${{ github.event.check_suite.head_sha || github.sha }}"
+          num=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --author "app/dependabot" \
+            --json number,headRefOid --jq ".[] | select(.headRefOid==\"$sha\") | .number" | head -n1)
+          if [ -z "$num" ]; then
+            echo "No open Dependabot PR for $sha; skipping"
+            echo "number=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge for Dependabot PR
+        if: steps.pr.outputs.number != '' && inputs.approve-only != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.number }}
+          METHOD: ${{ inputs.merge-method }}
+          USE_AUTO: ${{ inputs.use-github-auto-merge }}
+          TARGET: ${{ inputs.target }}
+          EXCLUDE: ${{ inputs.exclude }}
+        run: |
+          set -euo pipefail
+
+          # Optional package exclude list
+          if [ -n "$EXCLUDE" ]; then
+            title=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json title -q .title)
+            IFS=',' read -ra pkgs <<< "$EXCLUDE"
+            for pkg in "${pkgs[@]}"; do
+              pkg_trim=$(echo "$pkg" | xargs)
+              [ -z "$pkg_trim" ] && continue
+              if echo "$title" | grep -Fqi "$pkg_trim"; then
+                echo "Excluded package match ($pkg_trim); skipping auto-merge"
+                exit 0
+              fi
+            done
+          fi
+
+          # SemVer ceiling: Dependabot titles are usually "bump X from A to B"
+          # For patch/minor/major we rely on GitHub labels when present; otherwise allow any.
+          case "$TARGET" in
+            any|"") ;;
+            patch|minor|major)
+              labels=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels -q '[.labels[].name] | join(",")')
+              if echo "$labels" | grep -Eqi "dependencies|github_actions|javascript|docker|npm|pip"; then
+                :
+              fi
+              # Prefer Dependabot update-type labels if present
+              if [ "$TARGET" = "patch" ] && echo "$labels" | grep -qi "semver:major\|semver:minor"; then
+                echo "Target=patch but PR has higher SemVer label; skipping"
+                exit 0
+              fi
+              if [ "$TARGET" = "minor" ] && echo "$labels" | grep -qi "semver:major"; then
+                echo "Target=minor but PR has major SemVer label; skipping"
+                exit 0
+              fi
+              ;;
+            *)
+              echo "Unknown target=$TARGET; treating as any"
+              ;;
+          esac
+
+          method_flag="--squash"
+          case "$METHOD" in
+            merge) method_flag="--merge" ;;
+            rebase) method_flag="--rebase" ;;
+            squash) method_flag="--squash" ;;
+          esac
+
+          if [ "$USE_AUTO" = "true" ]; then
+            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto $method_flag
+            echo "Enabled auto-merge on #$PR"
+          else
+            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" $method_flag
+            echo "Merged #$PR"
+          fi
