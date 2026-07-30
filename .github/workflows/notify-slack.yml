@@ -5,7 +5,7 @@ name: notify-slack
 #   webhook-source: github   → secrets.SLACK_WEBHOOK_URL
 #   webhook-source: bitwarden → Bitwarden SM (BW_ACCESS_TOKEN + BW_SLACK_WEBHOOK_SECRET_ID)
 #
-# Call with secrets: inherit.
+# Callers must pass secrets explicitly (secrets: inherit is unreliable across orgs).
 
 on:
   workflow_call:
@@ -38,6 +38,16 @@ on:
         type: string
         required: false
         default: "https://vault.bitwarden.com"
+    secrets:
+      SLACK_WEBHOOK_URL:
+        description: Incoming webhook URL (webhook-source=github)
+        required: false
+      BW_ACCESS_TOKEN:
+        description: Bitwarden SM access token (webhook-source=bitwarden)
+        required: false
+      BW_SLACK_WEBHOOK_SECRET_ID:
+        description: Bitwarden secret id for the Slack webhook URL
+        required: false
 
 permissions:
   contents: read
