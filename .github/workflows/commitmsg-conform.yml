@@ -40,6 +40,8 @@ on:
 
 jobs:
   conform:
+    # Dependabot commit subjects often fail conventional-commit rules; skip for bots.
+    if: ${{ !contains(fromJSON('["dependabot[bot]", "dependabot-preview[bot]"]'), github.actor) }}
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
