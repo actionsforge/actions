@@ -23,6 +23,18 @@ on:
         type: string
         required: false
         default: "1"
+      deploy:
+        description: Deploy the built site to GitHub Pages (also skipped on pull_request)
+        type: boolean
+        required: false
+        default: true
+      ruby-version:
+        description: >
+          Ruby version for a Gemfile/bundler build (ruby/setup-ruby).
+          Leave empty to use actions/jekyll-build-pages instead.
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -41,9 +53,26 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
 
       - name: Setup Pages
+        id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d #v6.0.0
 
-      - name: Build with Jekyll
+      - name: Set up Ruby
+        if: inputs.ruby-version != ''
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b #v1.321.0
+        with:
+          ruby-version: ${{ inputs.ruby-version }}
+          bundler-cache: true
+          working-directory: ${{ inputs.source }}
+
+      - name: Build with Bundler
+        if: inputs.ruby-version != ''
+        working-directory: ${{ inputs.source }}
+        env:
+          JEKYLL_ENV: production
+        run: bundle exec jekyll build --baseurl "${{ steps.pages.outputs.base_path }}"
+
+      - name: Build with Jekyll Pages
+        if: inputs.ruby-version == ''
         uses: actions/jekyll-build-pages@44a6e6beabd48582f863aeeb6cb2151cc1716697 #v1.0.13
         with:
           source: ${{ inputs.source }}
@@ -58,6 +87,7 @@ jobs:
 
   deploy:
     needs: build
+    if: ${{ inputs.deploy && github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
