@@ -48,6 +48,11 @@ on:
         type: string
         required: false
         default: ".old"
+      actionsforge-ref:
+        description: Git ref of actionsforge/actions used for scripts/gatekeeper (keep aligned with the workflow pin)
+        type: string
+        required: false
+        default: "main"
       gator-version:
         type: string
         required: false
@@ -107,8 +112,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: actionsforge/actions
-          # Align scripts with the called workflow revision when available.
-          ref: ${{ github.workflow_sha || github.sha }}
+          ref: ${{ inputs.actionsforge-ref }}
           path: _gatekeeper_action
           sparse-checkout: |
             scripts/gatekeeper

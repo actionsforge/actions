@@ -74,6 +74,7 @@ Pass secrets explicitly across organizations (do not rely on `secrets: inherit`)
 | `kustomize-version` | string | no | `5.8.1` | kustomize release |
 | `kustomize-sha256` | string | no | (pinned) | linux-amd64 tarball SHA-256 |
 | `pyyaml-version` | string | no | `6.0.2` | PyYAML pin for expand-pods |
+| `actionsforge-ref` | string | no | `main` | Ref of `actionsforge/actions` for `scripts/gatekeeper` (pin to the same commit as the workflow `uses:` when needed) |
 
 ## Secrets
 
