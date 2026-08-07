@@ -1,0 +1,207 @@
+# Reusable: discover Kustomize roots under caller-defined paths and build each one.
+#
+# Self-contained by design: the build loop is inline, so `uses: ...@<ref>` pins every
+# line that executes. A called workflow cannot resolve its own ref, so fetching helper
+# scripts from a branch would unpin callers that pin this workflow by SHA.
+name: Kustomize build
+
+on:
+  workflow_call:
+    inputs:
+      roots:
+        description: Space-separated directories to search (find start points)
+        type: string
+        required: true
+      patterns:
+        description: Newline-separated find -path globs identifying kustomization files
+        type: string
+        required: true
+      exclude-patterns:
+        description: Newline-separated find -path globs to exclude (e.g. */vendored/*)
+        type: string
+        required: false
+        default: ""
+      kustomize-args:
+        description: Extra args appended to each kustomize build (e.g. --enable-helm)
+        type: string
+        required: false
+        default: ""
+      fail-fast:
+        description: Stop at the first failing root instead of reporting every failure
+        type: boolean
+        required: false
+        default: false
+      allow-empty:
+        description: Succeed when no kustomization files match
+        type: boolean
+        required: false
+        default: false
+      job-name:
+        description: Job display name (appears in the check name)
+        type: string
+        required: false
+        default: "kustomize build"
+      runs-on:
+        description: Runner label
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      kustomize-version:
+        description: kustomize release to install
+        type: string
+        required: false
+        default: "5.8.1"
+      kustomize-sha256:
+        description: >
+          SHA-256 of the kustomize tarball for this runner's OS/arch. Empty verifies
+          against the release's published checksums.txt instead.
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ inputs.job-name }}
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install kustomize
+        env:
+          KUSTOMIZE_VERSION: ${{ inputs.kustomize-version }}
+          KUSTOMIZE_SHA256: ${{ inputs.kustomize-sha256 }}
+        run: |
+          set -euo pipefail
+
+          case "$(uname -m)" in
+            x86_64 | amd64) arch=amd64 ;;
+            aarch64 | arm64) arch=arm64 ;;
+            ppc64le) arch=ppc64le ;;
+            s390x) arch=s390x ;;
+            *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+
+          if command -v sha256sum >/dev/null; then
+            sha_check() { sha256sum -c -; }
+          else
+            sha_check() { shasum -a 256 -c -; }
+          fi
+
+          tarball="kustomize_v${KUSTOMIZE_VERSION}_${os}_${arch}.tar.gz"
+          base_url="https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}"
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          curl -fsSL -o "${work}/${tarball}" "${base_url}/${tarball}"
+
+          # Checksum files name the tarball without a path, so verify from inside the
+          # download directory; a subshell keeps the caller checkout as the cwd.
+          if [[ -n "$KUSTOMIZE_SHA256" ]]; then
+            (cd "$work" && echo "${KUSTOMIZE_SHA256}  ${tarball}" | sha_check)
+          else
+            # Release checksums cover every published OS/arch, so version bumps and
+            # non-amd64 runners do not need a hand-maintained hash.
+            curl -fsSL -o "${work}/checksums.txt" "${base_url}/checksums.txt"
+            (cd "$work" && grep -F " ${tarball}" checksums.txt | sha_check)
+          fi
+
+          dest="${RUNNER_TEMP}/kustomize-bin"
+          mkdir -p "$dest"
+          tar xzf "${work}/${tarball}" -C "$dest" kustomize
+
+          echo "$dest" >>"$GITHUB_PATH"
+          "${dest}/kustomize" version
+
+      - name: Build discovered roots
+        env:
+          ROOTS: ${{ inputs.roots }}
+          PATTERNS: ${{ inputs.patterns }}
+          EXCLUDE_PATTERNS: ${{ inputs.exclude-patterns }}
+          KUSTOMIZE_ARGS: ${{ inputs.kustomize-args }}
+          FAIL_FAST: ${{ inputs.fail-fast }}
+          ALLOW_EMPTY: ${{ inputs.allow-empty }}
+        run: |
+          set -euo pipefail
+
+          read -r -a roots <<<"$ROOTS"
+          if [[ "${#roots[@]}" -eq 0 ]]; then
+            echo "roots must name at least one directory" >&2
+            exit 1
+          fi
+          for root in "${roots[@]}"; do
+            if [[ ! -d "$root" ]]; then
+              echo "root does not exist in the caller checkout: $root" >&2
+              exit 1
+            fi
+          done
+
+          mapfile -t patterns < <(printf '%s\n' "$PATTERNS" | sed -e 's/[[:space:]]*$//' -e '/^$/d')
+          if [[ "${#patterns[@]}" -eq 0 ]]; then
+            echo "patterns must contain at least one find -path glob" >&2
+            exit 1
+          fi
+          mapfile -t excludes < <(printf '%s\n' "$EXCLUDE_PATTERNS" | sed -e 's/[[:space:]]*$//' -e '/^$/d')
+
+          find_args=("${roots[@]}" -type f '(')
+          for i in "${!patterns[@]}"; do
+            [[ "$i" -gt 0 ]] && find_args+=(-o)
+            find_args+=(-path "${patterns[$i]}")
+          done
+          find_args+=(')')
+          for exclude in "${excludes[@]}"; do
+            find_args+=(! -path "$exclude")
+          done
+
+          mapfile -t kustomization_files < <(find "${find_args[@]}" | sort -u)
+          if [[ "${#kustomization_files[@]}" -eq 0 ]]; then
+            echo "No kustomization files matched under: ${ROOTS}"
+            if [[ "$ALLOW_EMPTY" == "true" ]]; then
+              exit 0
+            fi
+            echo "Set allow-empty to accept an empty match set." >&2
+            exit 1
+          fi
+
+          read -r -a kustomize_args <<<"$KUSTOMIZE_ARGS"
+          failed=0
+          passed=0
+          summary=()
+
+          for file in "${kustomization_files[@]}"; do
+            dir="$(dirname "$file")"
+            if output="$(kustomize build "${kustomize_args[@]}" "$dir" 2>&1 >/dev/null)"; then
+              echo "PASS $dir"
+              summary+=("PASS $dir")
+              passed=$((passed + 1))
+            else
+              echo "FAIL $dir"
+              [[ -n "$output" ]] && echo "$output"
+              summary+=("FAIL $dir")
+              failed=$((failed + 1))
+              if [[ "$FAIL_FAST" == "true" ]]; then
+                break
+              fi
+            fi
+          done
+
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            {
+              echo "## Kustomize build"
+              echo ""
+              echo "| Result | Root |"
+              echo "| --- | --- |"
+              for line in "${summary[@]}"; do
+                echo "| ${line%% *} | \`${line#* }\` |"
+              done
+            } >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ "$failed" -ne 0 ]]; then
+            echo "${failed} root(s) failed to build." >&2
+            exit 1
+          fi
+          echo "All kustomize builds succeeded (${passed} roots)."

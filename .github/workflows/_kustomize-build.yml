@@ -1,0 +1,25 @@
+# Internal smoke: call kustomize-build against fixtures. The local ./ path form runs the
+# workflow from this PR, so changes are exercised before merge.
+name: _kustomize-build
+
+on:
+  pull_request:
+    paths:
+      - "fixtures/kustomize/**"
+      - ".github/workflows/kustomize-build.yml"
+      - ".github/workflows/_kustomize-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    uses: ./.github/workflows/kustomize-build.yml
+    with:
+      job-name: kustomize build (fixtures)
+      roots: fixtures/kustomize/apps
+      patterns: |
+        */base/kustomization.yaml
+        */overlays/*/kustomization.yaml
+      exclude-patterns: |
+        */vendored/*

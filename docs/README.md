@@ -32,6 +32,7 @@ Workflows whose filenames start with `_` are internal callers for this repo and 
 | Workflow | Summary |
 | --- | --- |
 | [`gatekeeper-validate`](./workflows/gatekeeper-validate.md) | `gator test` app overlays against a Gatekeeper policy Git tree |
+| [`kustomize-build`](./workflows/kustomize-build.md) | Build every discovered Kustomize root and report all failures |
 
 ## CI / language
 
