@@ -1,0 +1,7 @@
+# Intentionally broken: this path matches the smoke caller's patterns but is excluded by
+# */vendored/*. If exclude-patterns ever stops working, the smoke job fails here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - does-not-exist.yaml
