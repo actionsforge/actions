@@ -1,0 +1,152 @@
+# PR / reusable: discover app overlays, expand pod templates, gator test against a policy tree.
+name: Gatekeeper validate
+
+on:
+  workflow_call:
+    inputs:
+      apps-path:
+        description: Root under the caller repo to discover overlays
+        type: string
+        required: false
+        default: "apps"
+      policy-repo:
+        description: Optional GitHub repo (owner/name) with policies. Empty = policies in the caller checkout.
+        type: string
+        required: false
+        default: ""
+      policy-ref:
+        description: Git ref for policy-repo
+        type: string
+        required: false
+        default: "main"
+      policy-checkout-path:
+        description: Directory for the policy checkout when policy-repo is set
+        type: string
+        required: false
+        default: "policy-src"
+      policy-path:
+        description: >
+          Path to the policy Kustomize root (or YAML directory), relative to the policy
+          workspace. Optional {cluster} is replaced with the app overlay cluster segment.
+        type: string
+        required: false
+        default: "policies"
+      policy-path-fallback:
+        description: >
+          If the resolved policy-path does not exist, try this path (also may contain {cluster}).
+          Empty disables fallback.
+        type: string
+        required: false
+        default: ""
+      deny-only:
+        description: Pass --deny-only to gator test (ignore dryrun constraints)
+        type: boolean
+        required: false
+        default: true
+      skip-overlay-name-suffix:
+        description: Skip overlay cluster dirs ending with this suffix (e.g. .old)
+        type: string
+        required: false
+        default: ".old"
+      gator-version:
+        type: string
+        required: false
+        default: "3.22.0"
+      gator-sha256:
+        type: string
+        required: false
+        default: "45ba8c54a22261473bddf6f4f18b154058d45b0c64f3e7a67b2fa781f0791800"
+      kustomize-version:
+        type: string
+        required: false
+        default: "5.8.1"
+      kustomize-sha256:
+        type: string
+        required: false
+        default: "029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d"
+      pyyaml-version:
+        type: string
+        required: false
+        default: "6.0.2"
+    secrets:
+      POLICY_REPO_TOKEN:
+        description: Token with read access to a private policy-repo. Unused when policy-repo is empty or public.
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  gator-test:
+    name: gator test (manifests vs policies)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Require token when cloning private policy-repo
+        if: inputs.policy-repo != ''
+        env:
+          POLICY_REPO_TOKEN: ${{ secrets.POLICY_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Public repos work with the default GITHUB_TOKEN; only fail when an explicit
+          # private token is required and missing after a clone attempt below.
+          echo "policy-repo=${{ inputs.policy-repo }} ref=${{ inputs.policy-ref }}"
+
+      - name: Checkout policy repo
+        if: inputs.policy-repo != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.policy-repo }}
+          ref: ${{ inputs.policy-ref }}
+          path: ${{ inputs.policy-checkout-path }}
+          token: ${{ secrets.POLICY_REPO_TOKEN || github.token }}
+
+      - name: Checkout actionsforge scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: actionsforge/actions
+          # Align scripts with the called workflow revision when available.
+          ref: ${{ github.workflow_sha || github.sha }}
+          path: _gatekeeper_action
+          sparse-checkout: |
+            scripts/gatekeeper
+          sparse-checkout-cone-mode: false
+
+      - name: Install gator + kustomize
+        env:
+          GATOR_VERSION: ${{ inputs.gator-version }}
+          GATOR_LINUX_AMD64_SHA256: ${{ inputs.gator-sha256 }}
+          KUSTOMIZE_VERSION: ${{ inputs.kustomize-version }}
+          KUSTOMIZE_LINUX_AMD64_SHA256: ${{ inputs.kustomize-sha256 }}
+          PYYAML_VERSION: ${{ inputs.pyyaml-version }}
+        run: |
+          set -euo pipefail
+          chmod +x _gatekeeper_action/scripts/gatekeeper/install-tools.sh
+          _gatekeeper_action/scripts/gatekeeper/install-tools.sh /usr/local/bin
+
+      - name: Validate overlays
+        env:
+          APPS_PATH: ${{ inputs.apps-path }}
+          POLICY_REPO: ${{ inputs.policy-repo }}
+          POLICY_CHECKOUT_PATH: ${{ inputs.policy-checkout-path }}
+          POLICY_PATH: ${{ inputs.policy-path }}
+          POLICY_PATH_FALLBACK: ${{ inputs.policy-path-fallback }}
+          DENY_ONLY: ${{ inputs.deny-only }}
+          SKIP_OVERLAY_NAME_SUFFIX: ${{ inputs.skip-overlay-name-suffix }}
+          EXPAND_PODS_PY: _gatekeeper_action/scripts/gatekeeper/expand-pods.py
+        run: |
+          set -euo pipefail
+          chmod +x _gatekeeper_action/scripts/gatekeeper/test-overlays.sh
+          if [[ -n "${POLICY_REPO}" ]]; then
+            export POLICY_ROOT="${POLICY_CHECKOUT_PATH}"
+          else
+            export POLICY_ROOT="."
+          fi
+          if [[ "${DENY_ONLY}" == "true" || "${DENY_ONLY}" == "True" ]]; then
+            export DENY_ONLY=true
+          else
+            export DENY_ONLY=false
+          fi
+          _gatekeeper_action/scripts/gatekeeper/test-overlays.sh

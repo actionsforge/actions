@@ -27,6 +27,12 @@ Workflows whose filenames start with `_` are internal callers for this repo and 
 | [`yaml-lint`](./workflows/yaml-lint.md) | Lint YAML with yamllint |
 | [`validate-devschema`](./workflows/validate-devschema.md) | Validate JSON (e.g. devcontainer) against a schema |
 
+## Kubernetes / policy
+
+| Workflow | Summary |
+| --- | --- |
+| [`gatekeeper-validate`](./workflows/gatekeeper-validate.md) | `gator test` app overlays against a Gatekeeper policy Git tree |
+
 ## CI / language
 
 | Workflow | Summary |

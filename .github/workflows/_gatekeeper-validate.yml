@@ -1,0 +1,22 @@
+# Internal smoke: call gatekeeper-validate against fixtures (no external policy repo).
+name: _gatekeeper-validate
+
+on:
+  pull_request:
+    paths:
+      - "scripts/gatekeeper/**"
+      - "fixtures/gatekeeper/**"
+      - ".github/workflows/gatekeeper-validate.yml"
+      - ".github/workflows/_gatekeeper-validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    uses: ./.github/workflows/gatekeeper-validate.yml
+    with:
+      apps-path: fixtures/gatekeeper/apps
+      policy-repo: ""
+      policy-path: fixtures/gatekeeper/policies
+      deny-only: true
