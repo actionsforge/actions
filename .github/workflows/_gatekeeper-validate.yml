@@ -20,3 +20,7 @@ jobs:
       policy-repo: ""
       policy-path: fixtures/gatekeeper/policies
       deny-only: true
+      # scripts/gatekeeper is cloned by the reusable, and its default ref (main) would
+      # hide this PR's script changes. The merge ref is what actions/checkout already
+      # resolves for the caller, and it is fetchable here even for fork PRs.
+      actionsforge-ref: refs/pull/${{ github.event.pull_request.number }}/merge

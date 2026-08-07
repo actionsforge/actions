@@ -85,5 +85,6 @@ Pass secrets explicitly across organizations (do not rely on `secrets: inherit`)
 ## Notes
 
 - This workflow runs **`gator test`** on app manifests. It does not install policies on a cluster and is not **`gator verify`** for Gatekeeper test suites.
+- **`actionsforge-ref`** decides which copy of `scripts/gatekeeper` runs, independently of the ref you pin in `uses:`. Leaving it at `main` while testing a change to those scripts silently runs the `main` versions instead. To exercise a pull request's scripts, pass `refs/pull/<n>/merge`.
 - Overlay discovery matches `*/overlays/*/kustomization.yaml` and `*/overlays/*/manifests/kustomization.yaml` (excludes `vendored/`).
 - Community alternative: [open-policy-agent/gatekeeper-library](https://github.com/open-policy-agent/gatekeeper-library) (templates under `library/`; you usually still need Constraints).
