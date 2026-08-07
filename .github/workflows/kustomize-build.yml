@@ -8,16 +8,16 @@ name: Kustomize build
 on:
   workflow_call:
     inputs:
-      roots:
-        description: Space-separated directories to search (find start points)
+      paths:
+        description: >
+          Whitespace- or newline-separated paths to search (e.g. "apps" or
+          "infrastructure shared"). Every kustomization root below them is built.
         type: string
         required: true
-      patterns:
-        description: Newline-separated find -path globs identifying kustomization files
-        type: string
-        required: true
-      exclude-patterns:
-        description: Newline-separated find -path globs to exclude (e.g. */vendored/*)
+      exclude:
+        description: >
+          Newline-separated glob patterns matched against discovered file paths;
+          a match skips that root (e.g. */vendored/*).
         type: string
         required: false
         default: ""
@@ -26,16 +26,6 @@ on:
         type: string
         required: false
         default: ""
-      fail-fast:
-        description: Stop at the first failing root instead of reporting every failure
-        type: boolean
-        required: false
-        default: false
-      allow-empty:
-        description: Succeed when no kustomization files match
-        type: boolean
-        required: false
-        default: false
       job-name:
         description: Job display name (appears in the check name)
         type: string
@@ -118,90 +108,57 @@ jobs:
 
       - name: Build discovered roots
         env:
-          ROOTS: ${{ inputs.roots }}
-          PATTERNS: ${{ inputs.patterns }}
-          EXCLUDE_PATTERNS: ${{ inputs.exclude-patterns }}
+          PATHS: ${{ inputs.paths }}
+          EXCLUDE: ${{ inputs.exclude }}
           KUSTOMIZE_ARGS: ${{ inputs.kustomize-args }}
-          FAIL_FAST: ${{ inputs.fail-fast }}
-          ALLOW_EMPTY: ${{ inputs.allow-empty }}
         run: |
           set -euo pipefail
 
-          read -r -a roots <<<"$ROOTS"
+          git rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
+            { echo "roots are discovered with git ls-files; check out the repository first" >&2; exit 1; }
+
+          row() {
+            [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] || return 0
+            printf '| %s | `%s` |\n' "$1" "$2" >>"$GITHUB_STEP_SUMMARY"
+          }
+
+          # PATHS, EXCLUDE, and KUSTOMIZE_ARGS are whitespace-separated lists, so they are
+          # deliberately unquoted. --others --exclude-standard also finds files an earlier
+          # step generated, while still honoring .gitignore.
+          mapfile -t roots < <(
+            git ls-files --cached --others --exclude-standard -- $PATHS |
+              grep -E '(^|/)(kustomization\.yaml|kustomization\.yml|Kustomization)$' |
+              while read -r file; do
+                for pattern in $EXCLUDE; do
+                  [[ "$file" == $pattern ]] && continue 2
+                done
+                dirname "$file"
+              done | sort -u
+          )
           if [[ "${#roots[@]}" -eq 0 ]]; then
-            echo "roots must name at least one directory" >&2
-            exit 1
-          fi
-          for root in "${roots[@]}"; do
-            if [[ ! -d "$root" ]]; then
-              echo "root does not exist in the caller checkout: $root" >&2
-              exit 1
-            fi
-          done
-
-          mapfile -t patterns < <(printf '%s\n' "$PATTERNS" | sed -e 's/[[:space:]]*$//' -e '/^$/d')
-          if [[ "${#patterns[@]}" -eq 0 ]]; then
-            echo "patterns must contain at least one find -path glob" >&2
-            exit 1
-          fi
-          mapfile -t excludes < <(printf '%s\n' "$EXCLUDE_PATTERNS" | sed -e 's/[[:space:]]*$//' -e '/^$/d')
-
-          find_args=("${roots[@]}" -type f '(')
-          for i in "${!patterns[@]}"; do
-            [[ "$i" -gt 0 ]] && find_args+=(-o)
-            find_args+=(-path "${patterns[$i]}")
-          done
-          find_args+=(')')
-          for exclude in "${excludes[@]}"; do
-            find_args+=(! -path "$exclude")
-          done
-
-          mapfile -t kustomization_files < <(find "${find_args[@]}" | sort -u)
-          if [[ "${#kustomization_files[@]}" -eq 0 ]]; then
-            echo "No kustomization files matched under: ${ROOTS}"
-            if [[ "$ALLOW_EMPTY" == "true" ]]; then
-              exit 0
-            fi
-            echo "Set allow-empty to accept an empty match set." >&2
+            echo "No kustomization roots to build under: $PATHS" >&2
             exit 1
           fi
 
-          read -r -a kustomize_args <<<"$KUSTOMIZE_ARGS"
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            printf '## Kustomize build\n\n| Result | Root |\n| --- | --- |\n' >>"$GITHUB_STEP_SUMMARY"
+          fi
+
           failed=0
-          passed=0
-          summary=()
-
-          for file in "${kustomization_files[@]}"; do
-            dir="$(dirname "$file")"
-            if output="$(kustomize build "${kustomize_args[@]}" "$dir" 2>&1 >/dev/null)"; then
+          for dir in "${roots[@]}"; do
+            if output="$(kustomize build $KUSTOMIZE_ARGS "$dir" 2>&1 >/dev/null)"; then
               echo "PASS $dir"
-              summary+=("PASS $dir")
-              passed=$((passed + 1))
+              row PASS "$dir"
             else
               echo "FAIL $dir"
               [[ -n "$output" ]] && echo "$output"
-              summary+=("FAIL $dir")
+              row FAIL "$dir"
               failed=$((failed + 1))
-              if [[ "$FAIL_FAST" == "true" ]]; then
-                break
-              fi
             fi
           done
 
-          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-            {
-              echo "## Kustomize build"
-              echo ""
-              echo "| Result | Root |"
-              echo "| --- | --- |"
-              for line in "${summary[@]}"; do
-                echo "| ${line%% *} | \`${line#* }\` |"
-              done
-            } >>"$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [[ "$failed" -ne 0 ]]; then
-            echo "${failed} root(s) failed to build." >&2
+          if [[ "$failed" -gt 0 ]]; then
+            echo "${failed} of ${#roots[@]} roots failed to build." >&2
             exit 1
           fi
-          echo "All kustomize builds succeeded (${passed} roots)."
+          echo "All ${#roots[@]} kustomize roots built."

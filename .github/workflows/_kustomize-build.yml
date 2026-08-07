@@ -17,9 +17,6 @@ jobs:
     uses: ./.github/workflows/kustomize-build.yml
     with:
       job-name: kustomize build (fixtures)
-      roots: fixtures/kustomize/apps
-      patterns: |
-        */base/kustomization.yaml
-        */overlays/*/kustomization.yaml
-      exclude-patterns: |
+      paths: fixtures/kustomize/apps
+      exclude: |
         */vendored/*
