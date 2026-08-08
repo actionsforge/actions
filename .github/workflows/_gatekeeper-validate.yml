@@ -13,6 +13,21 @@ permissions:
   contents: read
 
 jobs:
+  # The fixtures cannot catch an expansion regression on their own: a compliant
+  # workload passes whether or not its Pod was synthesized.
+  expand-pods:
+    name: expand-pods unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install PyYAML
+        run: python3 -m pip install --user "pyyaml==6.0.2"
+
+      - name: Run tests
+        run: python3 scripts/gatekeeper/expand-pods-test.py
+
   smoke:
     uses: ./.github/workflows/gatekeeper-validate.yml
     with:

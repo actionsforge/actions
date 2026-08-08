@@ -1,6 +1,8 @@
 # `gatekeeper-validate`
 
-Discover app Kustomize overlays, expand CronJob/Deployment/Job pod templates, and run `gator test` against a Gatekeeper policy tree.
+Discover app Kustomize overlays, expand Deployment/DaemonSet/StatefulSet/Job/CronJob pod templates, and run `gator test` against a Gatekeeper policy tree.
+
+Constraints that match `kind: Pod` never see a workload's containers unless a Pod is synthesized from its template, so any kind that is not expanded is silently exempt from every pod-security policy. DaemonSet and StatefulSet are included because node-level workloads such as CSI drivers and log shippers are the most likely to need privileged or host access — exactly what those policies exist to catch.
 
 ## Call
 

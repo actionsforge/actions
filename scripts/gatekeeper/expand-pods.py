@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Append synthetic Pod manifests from Deployment/CronJob/Job pod templates for gator test.
+"""Append synthetic Pod manifests from workload pod templates for gator test.
 
 Gatekeeper constraints that match kind Pod (e.g. allowPrivilegeEscalation) are not
 evaluated against CronJob/Deployment YAML alone. CI and local hooks use this helper.
+
+Covers Deployment, DaemonSet, StatefulSet, Job, and CronJob. DaemonSet and
+StatefulSet matter because node-level workloads (CSI drivers, log shippers) are the
+ones most likely to need privileged or host access, so omitting them hides exactly
+the workloads a pod-security policy is meant to catch.
 """
 from __future__ import annotations
 
@@ -85,6 +90,12 @@ def expand(manifests: str) -> str:
         elif kind == "Job":
             template = doc["spec"]["template"]
             suffix = "job-pod"
+        elif kind == "DaemonSet":
+            template = doc["spec"]["template"]
+            suffix = "daemonset-pod"
+        elif kind == "StatefulSet":
+            template = doc["spec"]["template"]
+            suffix = "statefulset-pod"
         if template is not None:
             out.append(_pod_from_template(doc, template, suffix, default_ns))
     # Must emit multi-doc YAML with --- separators. Concatenating dumps without
