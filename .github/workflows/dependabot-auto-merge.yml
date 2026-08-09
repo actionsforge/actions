@@ -128,10 +128,27 @@ jobs:
             squash) method_flag="--squash" ;;
           esac
 
+          # Treat "already enabled / merge already in progress / clean status"
+          # as success. The caller fires on multiple events (pull_request +
+          # check_suite), so a later run often finds auto-merge already enabled.
+          benign="already in progress|already enabled|clean status|not mergeable: the merge commit cannot be cleanly created"
+
           if [ "$USE_AUTO" = "true" ]; then
-            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto $method_flag
-            echo "Enabled auto-merge on #$PR"
+            if out=$(gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto $method_flag 2>&1); then
+              echo "Enabled auto-merge on #$PR"
+            elif echo "$out" | grep -qiE "$benign"; then
+              echo "Auto-merge already enabled / in progress on #$PR; nothing to do"
+            else
+              echo "$out" >&2
+              exit 1
+            fi
           else
-            gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" $method_flag
-            echo "Merged #$PR"
+            if out=$(gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" $method_flag 2>&1); then
+              echo "Merged #$PR"
+            elif echo "$out" | grep -qiE "$benign"; then
+              echo "Merge already in progress on #$PR; nothing to do"
+            else
+              echo "$out" >&2
+              exit 1
+            fi
           fi
