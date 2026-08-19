@@ -76,6 +76,7 @@ Workflows whose filenames start with `_` are internal callers for this repo and 
 | [`github-pages-deploy`](./workflows/github-pages-deploy.md) | Upload static files and deploy to GitHub Pages |
 | [`astro-pages-deploy`](./workflows/astro-pages-deploy.md) | Build an Astro site and deploy to GitHub Pages |
 | [`jekyll-pages-deploy`](./workflows/jekyll-pages-deploy.md) | Build a Jekyll site and deploy to GitHub Pages |
+| [`zensical-pages-deploy`](./workflows/zensical-pages-deploy.md) | Build a Zensical site and deploy to GitHub Pages |
 
 ## Node actions
 
