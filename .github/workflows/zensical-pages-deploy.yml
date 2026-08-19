@@ -1,0 +1,101 @@
+name: zensical-pages-deploy
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: Python version for the Zensical build
+        type: string
+        required: false
+        default: "3.13"
+      working-directory:
+        description: Directory that contains zensical.toml (and usually requirements.txt)
+        type: string
+        required: false
+        default: "."
+      requirements-file:
+        description: Pip requirements file relative to working-directory
+        type: string
+        required: false
+        default: "requirements.txt"
+      destination:
+        description: Zensical build output directory (uploaded as the Pages artifact)
+        type: string
+        required: false
+        default: "site"
+      build-args:
+        description: Extra arguments passed to zensical build
+        type: string
+        required: false
+        default: "--clean"
+      artifact-name:
+        description: Name of the Pages artifact to upload and deploy
+        type: string
+        required: false
+        default: "github-pages"
+      retention-days:
+        description: Number of days to retain the uploaded artifact
+        type: string
+        required: false
+        default: "1"
+      deploy:
+        description: Deploy the built site to GitHub Pages (also skipped on pull_request)
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+
+      - name: Setup Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d #v6.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+          cache-dependency-path: ${{ inputs.working-directory }}/${{ inputs.requirements-file }}
+
+      - name: Install
+        run: pip install -r ${{ inputs.requirements-file }}
+
+      - name: Build
+        run: zensical build ${{ inputs.build-args }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 #v5.0.0
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.working-directory }}/${{ inputs.destination }}
+          retention-days: ${{ inputs.retention-days }}
+
+  deploy:
+    needs: build
+    if: ${{ inputs.deploy && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 #v5.0.0
+        with:
+          artifact_name: ${{ inputs.artifact-name }}
