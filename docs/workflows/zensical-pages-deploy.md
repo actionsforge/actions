@@ -14,7 +14,7 @@ jobs:
   pages:
     uses: actionsforge/actions/.github/workflows/zensical-pages-deploy.yml@main
     with:
-      python-version: "3.13"
+      python-version: "3.14"
 ```
 
 For a site whose `zensical.toml` is not at the repository root:
@@ -32,7 +32,7 @@ jobs:
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `python-version` | `string` | no | `3.13` | Python version for the Zensical build |
+| `python-version` | `string` | no | `3.14` | Python version for the Zensical build |
 | `working-directory` | `string` | no | `.` | Directory that contains `zensical.toml` |
 | `requirements-file` | `string` | no | `requirements.txt` | Pip requirements file relative to `working-directory` |
 | `destination` | `string` | no | `site` | Zensical output directory (Pages artifact path) |
