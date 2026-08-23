@@ -9,14 +9,20 @@ Enable GitHub auto-merge for Dependabot PRs.
 ## Example
 
 ```yaml
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  workflows: write # required when Dependabot edits .github/workflows/*
+
 jobs:
   call:
     uses: actionsforge/actions/.github/workflows/dependabot-auto-merge.yml@main
+    secrets: inherit
     with:
       target: any
       merge-method: squash
       use-github-auto-merge: true
-      skip-verification: false
 ```
 
 ## Inputs
@@ -33,5 +39,5 @@ jobs:
 ## Notes
 
 - Enable **Allow auto-merge** on the repo and configure branch protection/rulesets for `gh pr merge --auto`.
-- PRs that change workflow files may fail to merge with `GITHUB_TOKEN` (needs `workflows` permission).
+- Callers must grant `workflows: write` (in addition to the reusable) so Dependabot PRs that edit `.github/workflows/*` can merge with `GITHUB_TOKEN`.
 
