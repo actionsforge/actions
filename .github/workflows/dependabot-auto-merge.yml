@@ -3,8 +3,9 @@ name: dependabot-auto-merge
 # Enable GitHub auto-merge for Dependabot PRs without approving them.
 # Org policy may block Actions from creating PR approvals; gh --auto does not need that.
 # Callers should trigger on pull_request (+ optional check_suite) and pass secrets: inherit.
-# Callers that expect Action bumps to auto-merge must also grant workflows: write
-# (GITHUB_TOKEN cannot update .github/workflows/* without it).
+# Do not add `workflows: write` to permissions — GitHub rejects it as an invalid scope.
+# Dependabot PRs that edit `.github/workflows/*` may need manual merge unless repo
+# workflow permissions allow GITHUB_TOKEN write (Settings → Actions → Workflow permissions).
 #
 # Note: `target` is a SemVer ceiling (major|minor|patch|any), not a branch name.
 
@@ -46,7 +47,6 @@ permissions:
   contents: write
   pull-requests: write
   checks: read
-  workflows: write
 
 jobs:
   auto-merge:

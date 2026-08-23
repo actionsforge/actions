@@ -13,7 +13,6 @@ permissions:
   contents: write
   pull-requests: write
   checks: read
-  workflows: write # required when Dependabot edits .github/workflows/*
 
 jobs:
   call:
@@ -39,5 +38,5 @@ jobs:
 ## Notes
 
 - Enable **Allow auto-merge** on the repo and configure branch protection/rulesets for `gh pr merge --auto`.
-- Callers must grant `workflows: write` (in addition to the reusable) so Dependabot PRs that edit `.github/workflows/*` can merge with `GITHUB_TOKEN`.
-
+- Do **not** add `workflows: write` to caller or reusable `permissions` — GitHub rejects it (`Unexpected value 'workflows'`).
+- Dependabot PRs that edit `.github/workflows/*` may still fail auto-merge at merge time; set repo **Workflow permissions** to read/write or merge those PRs manually.
