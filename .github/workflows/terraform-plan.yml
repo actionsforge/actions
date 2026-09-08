@@ -7,7 +7,8 @@ name: terraform-plan
 # Expects caller repo:
 #   secrets.AWS_ACCOUNT_ID (required)
 #   vars.OIDC_ROLE_NAME, vars.AWS_REGION, vars.TERRAFORM_VERSION
-# Optional TF_VAR_* secrets (omit when unused): VERCEL_*, *_ACCOUNT_EMAIL, etc.
+# Optional TF_VAR_* secrets (omit when unused): VERCEL_*, *_ACCOUNT_EMAIL,
+# BOOTSTRAP_ADMIN_EMAIL, etc.
 
 on:
   workflow_call:
@@ -54,6 +55,9 @@ on:
       SHARED_SERVICES_ACCOUNT_EMAIL:
         description: Optional TF_VAR_shared_services_account_email
         required: false
+      BOOTSTRAP_ADMIN_EMAIL:
+        description: Optional TF_VAR_bootstrap_admin_email
+        required: false
 
 permissions:
   id-token: write
@@ -70,6 +74,7 @@ jobs:
       TF_VAR_dev_account_email: ${{ secrets.DEV_ACCOUNT_EMAIL }}
       TF_VAR_network_account_email: ${{ secrets.NETWORK_ACCOUNT_EMAIL }}
       TF_VAR_shared_services_account_email: ${{ secrets.SHARED_SERVICES_ACCOUNT_EMAIL }}
+      TF_VAR_bootstrap_admin_email: ${{ secrets.BOOTSTRAP_ADMIN_EMAIL }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
