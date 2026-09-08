@@ -57,6 +57,8 @@ Workflows whose filenames start with `_` are internal callers for this repo and 
 | Workflow | Summary |
 | --- | --- |
 | [`terraform-lint-validate`](./workflows/terraform-lint-validate.md) | terraform fmt/validate (and related checks) |
+| [`terraform-plan`](./workflows/terraform-plan.md) | OIDC terraform fmt/validate/plan for pull requests |
+| [`terraform-apply`](./workflows/terraform-apply.md) | OIDC terraform fmt/validate/plan/apply (optional lock-file commit) |
 | [`terraform-docs`](./workflows/terraform-docs.md) | Render terraform-docs into README and push on PRs |
 | [`terraform-tag`](./workflows/terraform-tag.md) | Create a Terraform module semver tag (and optional release) |
 | [`terraform-tag-and-release`](./workflows/terraform-tag-and-release.md) | Thin caller around terraform-tag with release enabled |
