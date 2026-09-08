@@ -17,7 +17,7 @@ jobs:
       commit-lock-file: true
     secrets:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      # VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}  # optional TF_VAR
+      # BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.BOOTSTRAP_ADMIN_EMAIL }}  # optional TF_VAR
 ```
 
 ## Inputs
@@ -41,6 +41,7 @@ jobs:
 | `DEV_ACCOUNT_EMAIL` | no | Optional TF_VAR_dev_account_email |
 | `NETWORK_ACCOUNT_EMAIL` | no | Optional TF_VAR_network_account_email |
 | `SHARED_SERVICES_ACCOUNT_EMAIL` | no | Optional TF_VAR_shared_services_account_email |
+| `BOOTSTRAP_ADMIN_EMAIL` | no | Optional TF_VAR_bootstrap_admin_email |
 
 Pass secrets **explicitly** when the caller and this repo are in different orgs (`secrets: inherit` does not cross organizations).
 
