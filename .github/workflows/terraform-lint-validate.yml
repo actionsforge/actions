@@ -31,6 +31,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
 
       - name: Validate Terraform Configuration
-        uses: dflook/terraform-validate@36ef08d500fe2cd9b742b10176d2683707c7074e #v3.0.0
+        uses: dflook/terraform-validate@0cbcacca60ce490ae798d8c37c55f748a58ef32d #v3.0.1
         with:
           path: ${{ inputs.path }}
