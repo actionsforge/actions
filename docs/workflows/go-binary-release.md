@@ -12,6 +12,8 @@ artifact is statically linked and the same commit rebuilds to the same bytes. A
 `SHA256SUMS` file is written into the dist directory alongside the binaries with
 bare filenames, so a consumer can run `sha256sum -c SHA256SUMS` next to the
 downloaded assets. A caller that genuinely needs cgo passes `cgo-enabled: "1"`.
+Any `windows/*` target in `platforms` gets a `.exe` suffix on its artifact
+automatically, since Windows will not run the binary without it.
 
 ## Call
 

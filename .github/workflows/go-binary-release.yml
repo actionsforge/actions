@@ -134,6 +134,14 @@ jobs:
             goos="${platform%%/*}"
             goarch="${platform##*/}"
             name="${BINARY_NAME}-${goos}-${goarch}"
+            # Windows will not execute a binary without the extension, so the
+            # published asset has to carry it rather than be renamed on download.
+            # Spelled as an if rather than a bare [[ ]] && name=... so the
+            # non-Windows path leaves a zero status behind under set -e, without
+            # depending on the && list exemption to stay alive.
+            if [[ "${goos}" == "windows" ]]; then
+              name="${name}.exe"
+            fi
             out="${DIST_DIR}/${name}"
             echo "Building ${out}"
             GOOS="${goos}" GOARCH="${goarch}" go build "${build_flags[@]}" -ldflags="${LDFLAGS}" -o "${out}" ${PACKAGE}
