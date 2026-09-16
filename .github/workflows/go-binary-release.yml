@@ -30,6 +30,21 @@ on:
         type: string
         required: false
         default: "-s -w"
+      cgo-enabled:
+        description: CGO_ENABLED value for the build; 0 produces a statically linked binary
+        type: string
+        required: false
+        default: "0"
+      trimpath:
+        description: Strip build host paths and the VCS stamp for a reproducible binary
+        type: boolean
+        required: false
+        default: true
+      checksums:
+        description: Write SHA256SUMS covering the built artifacts
+        type: boolean
+        required: false
+        default: true
       platforms:
         description: Newline-separated GOOS/GOARCH pairs
         type: string
@@ -89,25 +104,47 @@ jobs:
           cache: ${{ inputs.cache }}
           cache-dependency-path: ${{ inputs.working-directory }}/go.sum
 
+      # CGO_ENABLED is exported here rather than set on the command line so the
+      # build has one source for it. Leaving cgo on lets the Go resolver bind to
+      # the runner's libc for DNS, which gives the published binary a runtime
+      # dependency on the build host. Without -trimpath the binary embeds the
+      # build machine's paths, so the same commit does not rebuild to the same
+      # bytes and a published checksum asserts nothing.
       - name: Build release binaries
         env:
           BINARY_NAME: ${{ inputs.binary-name }}
           PACKAGE: ${{ inputs.package }}
           LDFLAGS: ${{ inputs.ldflags }}
+          CGO_ENABLED: ${{ inputs.cgo-enabled }}
+          TRIMPATH: ${{ inputs.trimpath }}
+          CHECKSUMS: ${{ inputs.checksums }}
           PLATFORMS: ${{ inputs.platforms }}
           DIST_DIR: ${{ inputs.dist-dir }}
         run: |
           set -euo pipefail
           mkdir -p "${DIST_DIR}"
+          build_flags=()
+          if [[ "${TRIMPATH}" == "true" ]]; then
+            build_flags+=(-trimpath -buildvcs=false)
+          fi
+          artifacts=()
           while IFS= read -r platform; do
             platform="$(echo "${platform}" | tr -d '[:space:]')"
             [[ -z "${platform}" ]] && continue
             goos="${platform%%/*}"
             goarch="${platform##*/}"
-            out="${DIST_DIR}/${BINARY_NAME}-${goos}-${goarch}"
+            name="${BINARY_NAME}-${goos}-${goarch}"
+            out="${DIST_DIR}/${name}"
             echo "Building ${out}"
-            GOOS="${goos}" GOARCH="${goarch}" go build -ldflags="${LDFLAGS}" -o "${out}" ${PACKAGE}
+            GOOS="${goos}" GOARCH="${goarch}" go build "${build_flags[@]}" -ldflags="${LDFLAGS}" -o "${out}" ${PACKAGE}
+            artifacts+=("${name}")
           done <<< "${PLATFORMS}"
+          if [[ "${CHECKSUMS}" == "true" && "${#artifacts[@]}" -gt 0 ]]; then
+            # Written from inside the dist dir so the names are bare, which is
+            # what sha256sum -c expects beside the downloaded files.
+            (cd "${DIST_DIR}" && sha256sum "${artifacts[@]}" > SHA256SUMS)
+            cat "${DIST_DIR}/SHA256SUMS"
+          fi
           ls -la "${DIST_DIR}"
 
       - name: Create Release
