@@ -134,15 +134,25 @@ jobs:
           # Treat "already enabled / merge already in progress / clean status"
           # as success. The caller fires on multiple events (pull_request +
           # check_suite), so a later run often finds auto-merge already enabled.
-          # Single-quoted so backticks in the gh error text are literal, not command substitution.
-          benign='already in progress|already enabled|clean status|not mergeable: the merge commit cannot be cleanly created|without `workflows` permission|without workflows permission|Protected branch rules not configured|Auto merge is not allowed for this repository'
+          # No backticks — they expand under some runners even inside single quotes
+          # when the step script is rewritten.
+          benign='already in progress|already enabled|clean status|not mergeable: the merge commit cannot be cleanly created|without workflows permission|Protected branch rules not configured|Auto merge is not allowed for this repository'
 
           if [ "$USE_AUTO" = "true" ]; then
             if out=$(gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --auto $method_flag 2>&1); then
               echo "Enabled auto-merge on #$PR"
             elif echo "$out" | grep -qiE "$benign"; then
-              echo "Skipping auto-merge on #$PR (benign / expected limitation):"
+              echo "GitHub auto-merge unavailable on #$PR; falling back to direct merge"
               echo "$out"
+              if out2=$(gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" $method_flag 2>&1); then
+                echo "Merged #$PR (direct fallback)"
+              elif echo "$out2" | grep -qiE "$benign"; then
+                echo "Skipping merge on #$PR (benign / expected limitation):"
+                echo "$out2"
+              else
+                echo "$out2" >&2
+                exit 1
+              fi
             else
               echo "$out" >&2
               exit 1
