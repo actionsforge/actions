@@ -7,7 +7,7 @@ on:
         description: Node.js version for the Eleventy build
         type: string
         required: false
-        default: "22"
+        default: "24"
       working-directory:
         description: Directory that contains package.json
         type: string
