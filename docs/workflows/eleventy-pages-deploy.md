@@ -46,6 +46,7 @@ jobs:
 
 ## Notes
 
+- Uses `actions/configure-pages` with `enablement: true` so a fresh repo can enable Pages on first run.
 - On `pull_request`, the build still runs and uploads an artifact; deploy is skipped unless you call outside a PR (and `deploy` is `true`).
 - GitHub Pages for the caller repository must use **GitHub Actions** as the source.
 - Pass `path-prefix` for project Pages URLs (for example `/class-ab-mini-amp/`). Wire that env into Eleventy via `pathPrefix: process.env.PATH_PREFIX || "/"`.
