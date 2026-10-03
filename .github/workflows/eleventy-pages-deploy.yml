@@ -1,0 +1,108 @@
+name: eleventy-pages-deploy
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version for the Eleventy build
+        type: string
+        required: false
+        default: "22"
+      working-directory:
+        description: Directory that contains package.json
+        type: string
+        required: false
+        default: "."
+      install-command:
+        description: Shell command to install dependencies
+        type: string
+        required: false
+        default: "npm ci --no-audit --no-fund"
+      build-command:
+        description: Shell command to build the site
+        type: string
+        required: false
+        default: "npm run build"
+      path-prefix:
+        description: Value for PATH_PREFIX (Eleventy pathPrefix), e.g. /my-repo/
+        type: string
+        required: false
+        default: "/"
+      destination:
+        description: Build output directory (uploaded as the Pages artifact)
+        type: string
+        required: false
+        default: "_site"
+      artifact-name:
+        description: Name of the Pages artifact to upload and deploy
+        type: string
+        required: false
+        default: "github-pages"
+      retention-days:
+        description: Number of days to retain the uploaded artifact
+        type: string
+        required: false
+        default: "1"
+      deploy:
+        description: Deploy the built site to GitHub Pages (also skipped on pull_request)
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 #v7.0.1
+
+      - name: Setup Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d #v6.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 #v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+      - name: Install
+        run: ${{ inputs.install-command }}
+
+      - name: Build
+        env:
+          PATH_PREFIX: ${{ inputs.path-prefix }}
+        run: ${{ inputs.build-command }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 #v5.0.0
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.working-directory }}/${{ inputs.destination }}
+          retention-days: ${{ inputs.retention-days }}
+
+  deploy:
+    needs: build
+    if: ${{ inputs.deploy && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 #v5.0.1
+        with:
+          artifact_name: ${{ inputs.artifact-name }}
