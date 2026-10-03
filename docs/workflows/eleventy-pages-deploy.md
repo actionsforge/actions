@@ -14,7 +14,7 @@ jobs:
   pages:
     uses: actionsforge/actions/.github/workflows/eleventy-pages-deploy.yml@main
     with:
-      node-version: "22"
+      node-version: "24"
       path-prefix: /my-repo/
 ```
 
@@ -34,7 +34,7 @@ jobs:
 
 | Name | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `node-version` | `string` | no | `22` | Node.js version for the Eleventy build |
+| `node-version` | `string` | no | `24` | Node.js version for the Eleventy build |
 | `working-directory` | `string` | no | `.` | Directory that contains `package.json` |
 | `install-command` | `string` | no | `npm ci --no-audit --no-fund` | Shell command to install dependencies |
 | `build-command` | `string` | no | `npm run build` | Shell command to build the site |
@@ -46,6 +46,7 @@ jobs:
 
 ## Notes
 
+- Uses `actions/configure-pages` with `enablement: true` so a fresh repo can enable Pages on first run.
 - On `pull_request`, the build still runs and uploads an artifact; deploy is skipped unless you call outside a PR (and `deploy` is `true`).
 - GitHub Pages for the caller repository must use **GitHub Actions** as the source.
 - Pass `path-prefix` for project Pages URLs (for example `/class-ab-mini-amp/`). Wire that env into Eleventy via `pathPrefix: process.env.PATH_PREFIX || "/"`.
