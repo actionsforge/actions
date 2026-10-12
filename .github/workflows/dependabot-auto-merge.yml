@@ -84,14 +84,25 @@ jobs:
           fi
           echo "number=$num" >> "$GITHUB_OUTPUT"
 
+      # Secrets cannot be used in if: conditions; detect via env instead.
+      - name: Detect App secrets
+        id: app-secrets
+        if: steps.pr.outputs.number != '' && inputs.approve-only != true
+        env:
+          APP_ID: ${{ secrets.DEPENDABOT_MERGE_APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.DEPENDABOT_MERGE_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${APP_ID}" ] && [ -n "${APP_PRIVATE_KEY}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # GITHUB_TOKEN cannot merge PRs that modify workflow files; App token can.
       - name: Create GitHub App token
         id: app-token
-        if: >-
-          steps.pr.outputs.number != '' &&
-          inputs.approve-only != true &&
-          secrets.DEPENDABOT_MERGE_APP_ID != '' &&
-          secrets.DEPENDABOT_MERGE_APP_PRIVATE_KEY != ''
+        if: steps.app-secrets.outputs.present == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ secrets.DEPENDABOT_MERGE_APP_ID }}
