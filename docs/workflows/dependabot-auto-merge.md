@@ -17,7 +17,11 @@ permissions:
 jobs:
   call:
     uses: actionsforge/actions/.github/workflows/dependabot-auto-merge.yml@main
-    secrets: inherit
+    # Explicit map: Dependabot pull_request runs do not get Actions secrets via
+    # secrets: inherit — only Dependabot secrets, evaluated in the caller.
+    secrets:
+      DEPENDABOT_MERGE_APP_ID: ${{ secrets.DEPENDABOT_MERGE_APP_ID }}
+      DEPENDABOT_MERGE_APP_PRIVATE_KEY: ${{ secrets.DEPENDABOT_MERGE_APP_PRIVATE_KEY }}
     with:
       target: any
       merge-method: squash
