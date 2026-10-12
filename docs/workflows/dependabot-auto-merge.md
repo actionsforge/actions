@@ -35,8 +35,20 @@ jobs:
 | `approve-only` | `boolean` | no | `false` | Only approve the PR without merging (unsupported without Actions approve permission) |
 | `exclude` | `string` | no | `(empty)` | Comma-separated packages to exclude from auto-merge |
 
+## Secrets (optional)
+
+Pass via `secrets: inherit` (or explicitly) when Dependabot PRs edit `.github/workflows/*`.
+`GITHUB_TOKEN` cannot merge those PRs; a GitHub App with **Workflows: Read and write** can.
+
+| Secret | Description |
+| --- | --- |
+| `DEPENDABOT_MERGE_APP_ID` | App ID for [actionsforge-dependabot-merge](https://github.com/apps/actionsforge-dependabot-merge) |
+| `DEPENDABOT_MERGE_APP_PRIVATE_KEY` | PEM private key for that App |
+
+Install the App only on repos that need it. When these secrets are absent, the workflow falls back to `GITHUB_TOKEN` (non-workflow Dependabot PRs still merge).
+
 ## Notes
 
 - Enable **Allow auto-merge** on the repo and configure branch protection/rulesets for `gh pr merge --auto`.
 - Do **not** add `workflows: write` to caller or reusable `permissions` — GitHub rejects it (`Unexpected value 'workflows'`).
-- Dependabot PRs that edit `.github/workflows/*` may still fail auto-merge at merge time; set repo **Workflow permissions** to read/write or merge those PRs manually.
+- Without the App secrets, PRs that only bump Actions pins inside workflow files will fail or skip at merge time; that is a GitHub platform limit on `GITHUB_TOKEN`.
