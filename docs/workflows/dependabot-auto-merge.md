@@ -47,6 +47,9 @@ Pass via `secrets: inherit` (or explicitly) when Dependabot PRs edit `.github/wo
 
 Install the App only on repos that need it. When these secrets are absent, the workflow falls back to `GITHUB_TOKEN` (non-workflow Dependabot PRs still merge).
 
+Dependabot-triggered `pull_request` runs only see **Dependabot secrets**, not Actions secrets. Store the same names under
+**Settings → Secrets and variables → Dependabot** (and optionally also as Actions secrets for other triggers).
+
 ## Notes
 
 - Enable **Allow auto-merge** on the repo and configure branch protection/rulesets for `gh pr merge --auto`.
