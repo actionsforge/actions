@@ -59,3 +59,4 @@ Dependabot-triggered `pull_request` runs only see **Dependabot secrets**, not Ac
 - Enable **Allow auto-merge** on the repo and configure branch protection/rulesets for `gh pr merge --auto`.
 - Do **not** add `workflows: write` to caller or reusable `permissions` — GitHub rejects it (`Unexpected value 'workflows'`).
 - Without the App secrets, PRs that only bump Actions pins inside workflow files will fail or skip at merge time; that is a GitHub platform limit on `GITHUB_TOKEN`.
+- `gh pr merge` retries a few times on transient GitHub API errors (502/503/504 / Gateway Timeout).
